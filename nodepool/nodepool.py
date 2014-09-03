@@ -1179,7 +1179,8 @@ class NodePool(threading.Thread):
             d = Label()
             d.name = device_label['name']
             d.device_type = device_label['device_type']
-            if d.device_type in newconfig.device_labels:
+            if (hasattr(newconfig, 'device_labels') and 
+                d.device_type in newconfig.device_labels):
                 newconfig.device_labels[d.device_type].append(d)
             else:
                 newconfig.device_labels[d.device_type] = [d]
