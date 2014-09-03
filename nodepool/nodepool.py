@@ -1109,7 +1109,7 @@ class NodePool(threading.Thread):
         newconfig.providers = {}
         newconfig.targets = {}
         newconfig.labels = {}
-        newconfig.storage_labels = {}
+        newconfig.device_labels = {}
         newconfig.scriptdir = config.get('script-dir')
         newconfig.elementsdir = config.get('elements-dir')
         newconfig.imagesdir = config.get('images-dir')
