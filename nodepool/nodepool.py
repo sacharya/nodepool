@@ -1629,7 +1629,7 @@ class NodePool(threading.Thread):
         self.log.info("DANNN %s" % subnode_device_type)
         if subnode_device_type != 'compute':
             subnode_device_list = self.config.device_labels.get(subnode_device_type, None)
-            subnode_device_reservations = self.getDeviceReservations(session) 
+            subnode_device_reservations = self.getDeviceReservations(session, subnode_device_type) 
             # TODO find num reservations
             # Need %s reservation for     % (subnode_device_type, )
             self.log.info("Need %s %s nodes for %s on %s" %
