@@ -435,10 +435,10 @@ class NodeDatabaseSession(object):
             return None
         return nodes[0]
 
-    def getSubNodeByType(self, type):
+    def getSubNodesByType(self, type):
         nodes = self.session().query(SubNode).filter_by(device_type=type).all()
         if not nodes:
-            return None
+            return []
         return nodes
 
     def getNodeByHostname(self, hostname):
