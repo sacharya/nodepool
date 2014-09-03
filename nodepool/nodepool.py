@@ -1624,6 +1624,7 @@ class NodePool(threading.Thread):
         # already allocated node has priority in filling its subnodes
         # ahead of new nodes.
         subnodes_to_launch, subnode_device_type = self.getNeededSubNodes(session)
+        self.log.info("DANNN %s" % subnode_device_type)
         if subnode_device_type != 'compute':
             subnode_device_list = self.device_labels.get(subnode_device_type, None)
             subnode_device_reservations = self.getDeviceReservations(session) 
