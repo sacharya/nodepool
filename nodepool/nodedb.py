@@ -117,8 +117,8 @@ subnode_table = Table(
     # Time of last state change
     Column('state_time', Integer),
     )
-#external_device_table = Table(
-#    'external_device', metadata,
+#device_reservation_table = Table(
+#    'device_reservation', metadata,
 #    Column('id', Integer, primary_key=True),
 #    Column('node_id', Integer, index=True, nullable=False),
 #    Column('type', String(255)),
@@ -434,6 +434,12 @@ class NodeDatabaseSession(object):
         if not nodes:
             return None
         return nodes[0]
+
+    def getSubNodeByType(self, type):
+        nodes = self.session().query(SubNode).filter_by(device_type=type).all()
+        if not nodes:
+            return None
+        return nodes
 
     def getNodeByHostname(self, hostname):
         nodes = self.session().query(Node).filter_by(hostname=hostname).all()

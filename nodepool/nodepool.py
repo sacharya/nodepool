@@ -1178,14 +1178,14 @@ class NodePool(threading.Thread):
         for device_label in config['device-labels']:
             d = Label()
             d.name = device_label['name']
-	    d.device_type = device_label['device_type']
-	    if d.device_type in newconfig.device_labels:
-		newconfig.device_labels[d.device_type].append(d)
-	    else:
+            d.device_type = device_label['device_type']
+            if d.device_type in newconfig.device_labels:
+                newconfig.device_labels[d.device_type].append(d)
+            else:
                 newconfig.device_labels[d.device_type] = [d]
-	    d.ip = device_label['ip']
-	    d.hostname = device_label.get('hostname', None)
-	    d.concurrency = device_label.get('concurrency', 1)
+            d.ip = device_label['ip']
+            d.hostname = device_label.get('hostname', None)
+            d.concurrency = device_label.get('concurrency', 1)
 
 
         for provider in config['providers']:
@@ -1563,12 +1563,12 @@ class NodePool(threading.Thread):
 
     def getNeededSubNodes(self, session):
         nodes_to_launch = []
-	device_type = 'compute'
+        device_type = ''
         for node in session.getNodes():
             if node.label_name in self.config.labels:
                 expected_subnodes = \
                     self.config.labels[node.label_name].subnodes
-		device_type = self.config.labels[node.label_name].subnode_device_type
+                device_type = self.config.labels[node.label_name].subnode_device_type
                 active_subnodes = len([n for n in node.subnodes
                                        if n.state != nodedb.DELETE])
                 deficit = max(expected_subnodes - active_subnodes, 0)
@@ -1577,7 +1577,9 @@ class NodePool(threading.Thread):
         return nodes_to_launch, device_type
 
     def getDeviceReservations(self, session):
-	pass
+        device_reservations = []
+        for device in session.getSubNodeByType(device_type):
+            if 
 
     def updateConfig(self):
         config = self.loadConfig()
@@ -1623,33 +1625,34 @@ class NodePool(threading.Thread):
         # ahead of new nodes.
         subnodes_to_launch, subnode_device_type = self.getNeededSubNodes(session)
         if subnode_device_type != 'compute':
-	  subnode_device_list = self.device_labels.get(subnode_device_type, None)
-	  subnode_device_reservations = self.getDeviceReservations(session) 
-	  
-	else:
-          for (node, num_to_launch) in subnodes_to_launch:
-              self.log.info("Need to launch %s subnodes for node id: %s" %
-                            (num_to_launch, node.id))
-              for i in range(num_to_launch):
+            subnode_device_list = self.device_labels.get(subnode_device_type, None)
+            subnode_device_reservations = self.getDeviceReservations(session) 
+
+        else:
+            for (node, num_to_launch) in subnodes_to_launch:
+                self.log.info("Need to launch %s subnodes for node id: %s" %
+                    (num_to_launch, node.id))
+                for i in range(num_to_launch):
                   self.launchSubNode(session, node)
 
-          nodes_to_launch = self.getNeededNodes(session)
+            nodes_to_launch = self.getNeededNodes(session)
 
-          for (tlp, num_to_launch) in nodes_to_launch:
-              (target, label, provider) = tlp
-              if (not target.online) or (not num_to_launch):
-                  continue
-              self.log.info("Need to launch %s %s nodes for %s on %s" %
-                            (num_to_launch, label.name,
-                             target.name, provider.name))
-              for i in range(num_to_launch):
-                  snap_image = session.getCurrentSnapshotImage(
-                      provider.name, label.image)
-                  if not snap_image:
-                      self.log.debug("No current image for %s on %s"
-                                     % (label.image, provider.name))
-                  else:
-                      self.launchNode(session, provider, label, target)
+            for (tlp, num_to_launch) in nodes_to_launch:
+                (target, label, provider) = tlp
+                if (not target.online) or (not num_to_launch):
+                    continue
+                self.log.info("Need to launch %s %s nodes for %s on %s" %
+                              (num_to_launch, label.name,
+                               target.name, provider.name))
+
+                for i in range(num_to_launch):
+                    snap_image = session.getCurrentSnapshotImage(
+                        provider.name, label.image)
+                    if not snap_image:
+                        self.log.debug("No current image for %s on %s"
+                                       % (label.image, provider.name))
+                    else:
+                        self.launchNode(session, provider, label, target)
 
     def checkForMissingImages(self, session):
         # If we are missing an image, run the image update function
