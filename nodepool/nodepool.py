@@ -1564,7 +1564,7 @@ class NodePool(threading.Thread):
 
     def getNeededSubNodes(self, session):
         nodes_to_launch = []
-        device_type = ''
+        device_type = 'compute'
         for node in session.getNodes():
             if node.label_name in self.config.labels:
                 expected_subnodes = \
