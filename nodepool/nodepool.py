@@ -1632,9 +1632,6 @@ class NodePool(threading.Thread):
             subnode_device_reservations = self.getDeviceReservations(session, subnode_device_type) 
             # TODO find num reservations
             # Need %s reservation for     % (subnode_device_type, )
-            self.log.info("Need %s %s nodes for %s on %s" %
-                              (num_to_launch, label.name,
-                               target.name, provider.name))
         else:
             for (node, num_to_launch) in subnodes_to_launch:
                 self.log.info("Need to launch %s subnodes for node id: %s" %
@@ -1875,7 +1872,7 @@ class NodePool(threading.Thread):
             az = None
         node = session.createNode(provider.name, label.name, target.name, az)
         if label.subnode_device_type != 'compute':
-            subnode_device_list = self.config.device_labels.get(subnode_device_type, None)
+            subnode_device_list = self.config.device_labels.get(label.subnode_device_type, None)
             self.log.info("DANN1879 %s" % label.subnode_device_type)
             self.log.info("DANN1880 %s" % subnode_device_list)
         t = NodeLauncher(self, provider, label, target, node.id, timeout,
