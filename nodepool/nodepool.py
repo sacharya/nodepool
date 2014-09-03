@@ -1871,8 +1871,9 @@ class NodePool(threading.Thread):
         else:
             az = None
         node = session.createNode(provider.name, label.name, target.name, az)
+        self.log.info("HEERE?")
         if label.subnode_device_type != 'compute':
-            subnode_device_list = self.config.device_labels.get(label.subnode_device_type, None)
+            subnode_device_list = self.config.device_labels.get(subnode_device_type, None)
             self.log.info("DANN1879 %s" % label.subnode_device_type)
             self.log.info("DANN1880 %s" % subnode_device_list)
         t = NodeLauncher(self, provider, label, target, node.id, timeout,
