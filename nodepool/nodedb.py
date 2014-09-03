@@ -104,6 +104,8 @@ subnode_table = Table(
     'subnode', metadata,
     Column('id', Integer, primary_key=True),
     Column('node_id', Integer, index=True, nullable=False),
+    # Subnode type (storage or compute so far)
+    Column('device_type', String(255)),
     # Machine name
     Column('hostname', String(255), index=True),
     # Provider assigned id for this machine
@@ -115,6 +117,18 @@ subnode_table = Table(
     # Time of last state change
     Column('state_time', Integer),
     )
+#external_device_table = Table(
+#    'external_device', metadata,
+#    Column('id', Integer, primary_key=True),
+#    Column('node_id', Integer, index=True, nullable=False),
+#    Column('type', String(255)),
+#    # Primary IP address
+#    Column('ip', String(255)),
+#    # One of the above values
+#    Column('state', Integer),
+#    # Time of last state change
+#    Column('state_time', Integer),
+#    )
 
 
 class DibImage(object):
@@ -206,7 +220,7 @@ class Node(object):
 class SubNode(object):
     def __init__(self, node,
                  hostname=None, external_id=None, ip=None,
-                 state=BUILDING):
+                 state=BUILDING, device_type=None):
         self.node_id = node.id
         self.provider_name = node.provider_name
         self.label_name = node.label_name
@@ -215,6 +229,7 @@ class SubNode(object):
         self.ip = ip
         self.hostname = hostname
         self.state = state
+        self.device_type = device_type
 
     def delete(self):
         session = Session.object_session(self)
