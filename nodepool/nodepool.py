@@ -1579,7 +1579,7 @@ class NodePool(threading.Thread):
 
     def getDeviceReservations(self, session, device_type):
         device_reservations = []
-        for device in session.getSubNodeByType(device_type):
+        for device in session.getSubNodesByType(device_type):
             self.log.info("DANN %s" % device)
 
 
