@@ -1008,9 +1008,9 @@ class SnapshotImageUpdater(ImageUpdater):
                 continue
             host.scp(path, 'scripts/%s' % fname)
         if self.image.slave_private_key is not None:
-            host.scp(self.image.slave_private_key, '/home/jenkins/.ssh/id_rsa')
+            host.scp(self.image.slave_private_key, '/root/.ssh/id_rsa')
             host.ssh("set private key permissions",
-                     "sudo chmod 700 /home/jenkins/.ssh/id_rsa")
+                     "sudo chmod 700 /root/.ssh/id_rsa")
         host.ssh("move scripts to opt",
                  "sudo mv scripts /opt/nodepool-scripts")
         host.ssh("set scripts permissions",
