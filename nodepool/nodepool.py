@@ -565,8 +565,8 @@ class SubNodeLauncher(threading.Thread):
 
     def _run(self):
         with self.nodepool.getDB().getSession() as session:
-            self.log.debug("Launching subnode id: %s for node id: %s" %
-                           (self.subnode_id, self.node_id))
+            self.log.debug("Launching subnode id: %s of type %s for node id: %s" %
+                           (self.subnode_id, self.label.subnode_device_type, self.node_id))
             try:
                 self.subnode = session.getSubNode(self.subnode_id)
                 self.manager = self.nodepool.getProviderManager(self.provider)
@@ -614,65 +614,75 @@ class SubNodeLauncher(threading.Thread):
         start_time = time.time()
         timestamp = int(start_time)
 
-        target = self.nodepool.config.targets[self.node_target_name]
-        hostname = target.subnode_hostname.format(
-            label=self.label, provider=self.provider, node_id=self.node_id,
-            subnode_id=self.subnode_id, timestamp=str(timestamp))
-        self.subnode.hostname = hostname
-        self.subnode.nodename = hostname.split('.')[0]
 
-        snap_image = session.getCurrentSnapshotImage(
-            self.provider.name, self.image.name)
-        if not snap_image:
-            raise LaunchNodepoolException("Unable to find current snapshot "
-                                          "image %s in %s" %
-                                          (self.image.name,
-                                           self.provider.name))
 
-        self.log.info("Creating server with hostname %s in %s from image %s "
-                      "for subnode id: %s for node id: %s"
-                      % (hostname, self.provider.name,
-                         self.image.name, self.subnode_id, self.node_id))
-        server_id = self.manager.createServer(
-            hostname, self.image.min_ram, snap_image.external_id,
-            name_filter=self.image.name_filter, az=self.node_az)
-        self.subnode.external_id = server_id
-        session.commit()
+        if self.label.subnode_device_type == 'compute':
+            #compute only
+            target = self.nodepool.config.targets[self.node_target_name]
+            hostname = target.subnode_hostname.format(
+                label=self.label, provider=self.provider, node_id=self.node_id,
+                subnode_id=self.subnode_id, timestamp=str(timestamp))
+            self.subnode.hostname = hostname
+            self.subnode.nodename = hostname.split('.')[0]
 
-        self.log.debug("Waiting for server %s for subnode id: %s for "
-                       "node id: %s" %
-                       (server_id, self.subnode_id, self.node_id))
-        server = self.manager.waitForServer(server_id, self.launch_timeout)
-        if server['status'] != 'ACTIVE':
-            raise LaunchStatusException("Server %s for subnode id: "
-                                        "%s for node id: %s "
-                                        "status: %s" %
-                                        (server_id, self.subnode_id,
-                                         self.node_id, server['status']))
+            snap_image = session.getCurrentSnapshotImage(
+                self.provider.name, self.image.name)
+            if not snap_image:
+                raise LaunchNodepoolException("Unable to find current snapshot "
+                                              "image %s in %s" %
+                                              (self.image.name,
+                                               self.provider.name))
 
-        ip = server.get('public_v4')
-        if not ip and self.manager.hasExtension('os-floating-ips'):
-            ip = self.manager.addPublicIP(server_id,
-                                          pool=self.provider.pool)
-        if not ip:
-            raise LaunchNetworkException("Unable to find public IP of server")
+            self.log.info("Creating server with hostname %s in %s from image %s "
+                          "for subnode id: %s for node id: %s"
+                          % (hostname, self.provider.name,
+                             self.image.name, self.subnode_id, self.node_id))
+            server_id = self.manager.createServer(
+                hostname, self.image.min_ram, snap_image.external_id,
+                name_filter=self.image.name_filter, az=self.node_az)
+            self.subnode.external_id = server_id
+            session.commit()
 
-        self.subnode.ip = ip
-        self.log.debug("Subnode id: %s for node id: %s is running, "
-                       "ip: %s, testing ssh" %
-                       (self.subnode_id, self.node_id, ip))
-        connect_kwargs = dict(key_filename=self.image.private_key)
-        if not utils.ssh_connect(ip, self.image.username,
-                                 connect_kwargs=connect_kwargs,
-                                 timeout=self.timeout):
-            raise LaunchAuthException("Unable to connect via ssh")
+            self.log.debug("Waiting for server %s for subnode id: %s for "
+                           "node id: %s" %
+                           (server_id, self.subnode_id, self.node_id))
+            server = self.manager.waitForServer(server_id, self.launch_timeout)
+            if server['status'] != 'ACTIVE':
+                raise LaunchStatusException("Server %s for subnode id: "
+                                            "%s for node id: %s "
+                                            "status: %s" %
+                                            (server_id, self.subnode_id,
+                                             self.node_id, server['status']))
+
+            ip = server.get('public_v4')
+            if not ip and self.manager.hasExtension('os-floating-ips'):
+                ip = self.manager.addPublicIP(server_id,
+                                              pool=self.provider.pool)
+            if not ip:
+                raise LaunchNetworkException("Unable to find public IP of server")
+
+            self.subnode.ip = ip
+            self.log.debug("Subnode id: %s for node id: %s is running, "
+                           "ip: %s, testing ssh" %
+                           (self.subnode_id, self.node_id, ip))
+            connect_kwargs = dict(key_filename=self.image.private_key)
+            if not utils.ssh_connect(ip, self.image.username,
+                                     connect_kwargs=connect_kwargs,
+                                     timeout=self.timeout):
+                raise LaunchAuthException("Unable to connect via ssh")
+        else:
+            self.log.debug("Creating subnode %s of type %s for node id: %s" % 
+                           (self.subnode_id, self.label.subnode_device_type, self.node_id))
+            self.log.debug("BEEP BOOP BEEP BEEP")
+
+
 
         # Save the elapsed time for statsd
         dt = int((time.time() - start_time) * 1000)
 
         self.subnode.state = nodedb.READY
-        self.log.info("Subnode id: %s for node id: %s is ready"
-                      % (self.subnode_id, self.node_id))
+        self.log.info("Subnode id: %s of type %s for node id: %s is ready"
+                      % (self.subnode_id, self.label.subnode_device_type, self.node_id))
         self.nodepool.updateStats(session, self.provider.name)
 
         return dt
@@ -1168,7 +1178,7 @@ class NodePool(threading.Thread):
             l.image = label['image']
             l.min_ready = label.get('min-ready', 2)
             l.subnodes = label.get('subnodes', 0)
-            l.subnode_device_type = label.get('subnode_device_type', 'compute')
+            l.subnode_device_type = label.get('subnode-device-type', 'compute')
             l.ready_script = label.get('ready-script')
             l.providers = {}
             for provider in label['providers']:
@@ -1182,7 +1192,7 @@ class NodePool(threading.Thread):
         for device_label in config['device-labels']:
             d = Label()
             d.name = device_label['name']
-            d.device_type = device_label['device_type']
+            d.device_type = device_label['device-type']
             if (hasattr(newconfig, 'device_labels') and 
                 d.device_type in newconfig.device_labels):
                 newconfig.device_labels[d.device_type].append(d)
@@ -1569,16 +1579,18 @@ class NodePool(threading.Thread):
 
     def getNeededSubNodes(self, session):
         nodes_to_launch = []
+        device_type = 'compute'
         for node in session.getNodes():
             if node.label_name in self.config.labels:
                 expected_subnodes = \
                     self.config.labels[node.label_name].subnodes
                 active_subnodes = len([n for n in node.subnodes
                                        if n.state != nodedb.DELETE])
+                device_type = self.config.labels[node.label_name].subnode_device_type
                 deficit = max(expected_subnodes - active_subnodes, 0)
                 if deficit:
                     nodes_to_launch.append((node, deficit))
-        return nodes_to_launch
+        return nodes_to_launch, device_type
 
     def updateConfig(self):
         config = self.loadConfig()
@@ -1622,7 +1634,7 @@ class NodePool(threading.Thread):
         # Make up the subnode deficit first to make sure that an
         # already allocated node has priority in filling its subnodes
         # ahead of new nodes.
-        subnodes_to_launch = self.getNeededSubNodes(session)
+        subnodes_to_launch, subnode_device_type = self.getNeededSubNodes(session)
         for (node, num_to_launch) in subnodes_to_launch:
             self.log.info("Need to launch %s subnodes for node id: %s" %
                           (num_to_launch, node.id))
@@ -1876,7 +1888,7 @@ class NodePool(threading.Thread):
         label = self.config.labels[node.label_name]
         timeout = provider.boot_timeout
         launch_timeout = provider.launch_timeout
-        subnode = session.createSubNode(node)
+        subnode = session.createSubNode(node, device_type=label.subnode_device_type)
         t = SubNodeLauncher(self, provider, label, subnode.id,
                             node.id, node.target_name, timeout, launch_timeout,
                             node_az=node.az)
