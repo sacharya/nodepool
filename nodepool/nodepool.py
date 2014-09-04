@@ -1007,6 +1007,10 @@ class SnapshotImageUpdater(ImageUpdater):
             if not os.path.isfile(path):
                 continue
             host.scp(path, 'scripts/%s' % fname)
+        if self.image.slave_private_key is not None:
+            host.scp(self.image.slave_private_key, '/home/jenkins/.ssh/id_rsa')
+            host.ssh("set private key permissions",
+                     "sudo chmod 700 /home/jenkins/.ssh/id_rsa")
         host.ssh("move scripts to opt",
                  "sudo mv scripts /opt/nodepool-scripts")
         host.ssh("set scripts permissions",
@@ -1211,6 +1215,8 @@ class NodePool(threading.Thread):
                 i.username = image.get('username', 'jenkins')
                 i.private_key = image.get('private-key',
                                           '/var/lib/jenkins/.ssh/id_rsa')
+                i.slave_private_key = image.get('slave-private-key',
+                                                '/var/lib/jenkins/.ssh/id_rsa')
 
         for target in config['targets']:
             t = Target()
