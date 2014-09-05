@@ -1599,7 +1599,7 @@ class NodePool(threading.Thread):
         reservation_per_ip = {dev.ip: 0 for dev in all_devices}
         device_to_use = None
         for used_device in used_devices:
-            ip = used_device.get('ip', None)
+            ip = used_device.ip
             if ip in reservation_per_ip:
                 reservation_per_ip[ip] += 1
         for device in all_devices:
