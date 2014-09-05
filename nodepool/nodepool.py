@@ -1902,7 +1902,7 @@ class NodePool(threading.Thread):
 
     def launchSubNode(self, session, node, device=None):
         try:
-            self._launchSubNode(session, node, device=None)
+            self._launchSubNode(session, node, device)
         except Exception:
             self.log.exception(
                 "Could not launch subnode for node id: %s", node.id)
