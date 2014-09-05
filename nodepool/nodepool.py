@@ -1978,7 +1978,7 @@ class NodePool(threading.Thread):
             self.log.info("Deleted jenkins node id: %s" % node.id)
 
         for subnode in node.subnodes:
-            if subnode.external_id:
+            if subnode.external_id and subnode.device_type == 'compute':
                 try:
                     self.log.debug('Deleting server %s for subnode id: '
                                    '%s of node id: %s' %
@@ -2000,6 +2000,12 @@ class NodePool(threading.Thread):
         for subnode in node.subnodes:
             if subnode.external_id:
                 manager.waitForServerDeletion(subnode.external_id)
+                subnode.delete()
+            elif subnode.device_type != 'compute':
+                #UNSETUP NODE IN MANAGER MABOB
+                self.log.debug('Deleting subnode %s of type %s for server %s' % 
+                               (subnode.id, subnode.device_type, node.id))
+                self.log.info("BOOP BEEP BOOP BOOP")
                 subnode.delete()
 
         node.delete()
