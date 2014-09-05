@@ -1482,7 +1482,9 @@ class NodePool(threading.Thread):
         def count_nodes_and_subnodes(provider_name):
             count = 0
             for n in session.getNodes(provider_name):
-                count += 1 + len(n.subnodes)
+                compute_subnodes = [subnode if subnode.device_type == 'compute' 
+                                            for subnode in n.subnodes]
+                count += 1 + len(compute_subnodes)
             return count
 
         # Actual need is demand - (ready + building)
