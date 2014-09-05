@@ -1912,7 +1912,7 @@ class NodePool(threading.Thread):
         label = self.config.labels[node.label_name]
         timeout = provider.boot_timeout
         launch_timeout = provider.launch_timeout
-        if device_type != 'compute':
+        if label.subnode_device_type != 'compute':
             subnode = session.createSubNode(node, hostname=device.hostname, 
                                             ip=device.ip, device_type=label.subnode_device_type)
         else:
