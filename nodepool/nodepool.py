@@ -1579,8 +1579,7 @@ class NodePool(threading.Thread):
         return nodes_to_launch
 
     def getNeededSubNodes(self, session):
-        nodes_to_launch = []
-        device_type = 'compute'
+        nodes_to_launch = []        
         for node in session.getNodes():
             if node.label_name in self.config.labels:
                 expected_subnodes = \
@@ -1590,8 +1589,8 @@ class NodePool(threading.Thread):
                 device_type = self.config.labels[node.label_name].subnode_device_type
                 deficit = max(expected_subnodes - active_subnodes, 0)
                 if deficit:
-                    nodes_to_launch.append((node, deficit))
-        return nodes_to_launch, device_type
+                    nodes_to_launch.append((node, deficit, device_type))
+        return nodes_to_launch
 
     def getAvailableDevice(self, session, device_type):
         all_devices = self.config.device_labels.get(device_type, [])
@@ -1653,8 +1652,8 @@ class NodePool(threading.Thread):
         # Make up the subnode deficit first to make sure that an
         # already allocated node has priority in filling its subnodes
         # ahead of new nodes.
-        subnodes_to_launch, subnode_device_type = self.getNeededSubNodes(session)
-        for (node, num_to_launch) in subnodes_to_launch:
+        subnodes_to_launch = self.getNeededSubNodes(session)
+        for (node, num_to_launch, subnode_device_type) in subnodes_to_launch:
             self.log.info("Need to launch %s subnodes for node id: %s" %
                           (num_to_launch, node.id))
             for i in range(num_to_launch):
