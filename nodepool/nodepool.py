@@ -431,7 +431,8 @@ class NodeLauncher(threading.Thread):
 
         nodelist = []
         for subnode in self.node.subnodes:
-            nodelist.append(('sub', subnode))
+            if subnode.device_type == 'compute':
+                nodelist.append(('sub', subnode))
         nodelist.append(('primary', self.node))
 
         self.writeNodepoolInfo(nodelist)
@@ -1592,6 +1593,24 @@ class NodePool(threading.Thread):
                     nodes_to_launch.append((node, deficit))
         return nodes_to_launch, device_type
 
+    def getAvailableDevice(self, session, device_type):
+        all_devices = self.config.device_labels.get(device_type, [])
+        used_devices = session.getSubNodesByType(device_type)
+        reservation_per_ip = {dev.ip: 0 for dev in all_devices}
+        device_to_use = None
+        for used_device in used_devices:
+            ip = used_device.get('ip', None)
+            if ip in reservation_per_ip:
+                reservation_per_ip[ip] += 1
+        for device in all_devices:
+            allowed_concurrency = device.concurrency
+            current_concurrency = reservation_per_ip[device.ip]
+            if allowed_concurrency > current_concurrency:
+                device_to_use = device
+
+        return device_to_use
+
+
     def updateConfig(self):
         config = self.loadConfig()
         self.reconfigureDatabase(config)
@@ -1639,7 +1658,12 @@ class NodePool(threading.Thread):
             self.log.info("Need to launch %s subnodes for node id: %s" %
                           (num_to_launch, node.id))
             for i in range(num_to_launch):
-                self.launchSubNode(session, node)
+                if subnode_device_type != 'compute':
+                    device = self.getAvailableDevice(session, subnode_device_type)
+                    if device is not None:
+                        self.launchSubNode(session, node, device)
+                else:
+                    self.launchSubNode(session, node)
 
         nodes_to_launch = self.getNeededNodes(session)
 
@@ -1876,19 +1900,23 @@ class NodePool(threading.Thread):
                          launch_timeout)
         t.start()
 
-    def launchSubNode(self, session, node):
+    def launchSubNode(self, session, node, device=None):
         try:
-            self._launchSubNode(session, node)
+            self._launchSubNode(session, node, device=None)
         except Exception:
             self.log.exception(
                 "Could not launch subnode for node id: %s", node.id)
 
-    def _launchSubNode(self, session, node):
+    def _launchSubNode(self, session, node, device=None):
         provider = self.config.providers[node.provider_name]
         label = self.config.labels[node.label_name]
         timeout = provider.boot_timeout
         launch_timeout = provider.launch_timeout
-        subnode = session.createSubNode(node, device_type=label.subnode_device_type)
+        if device_type != 'compute'
+            subnode = session.createSubNode(node, hostname=device.hostname, 
+                                            ip=device.ip, device_type=label.subnode_device_type)
+        else:
+            subnode = session.createSubNode(node, device_type=label.subnode_device_type)
         t = SubNodeLauncher(self, provider, label, subnode.id,
                             node.id, node.target_name, timeout, launch_timeout,
                             node_az=node.az)
