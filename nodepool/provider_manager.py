@@ -448,7 +448,7 @@ class ProviderManager(TaskManager):
             if status == 'ERROR':
                 return resource
             elif status == 'ACTIVE':
-                if hasattr(resource['metadata'], 'rackconnect_automation_status'):
+                if 'rackconnect_automation_status' in resource['metadata']:
                     self.log.info("Checking for Rackconnect")
                     if resource['metadata']['rackconnect_automation_status'] == 'DEPLOYED':
                         self.log.info("Rackconnect DEPLOYED")
