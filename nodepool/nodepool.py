@@ -710,7 +710,7 @@ class SubNodeLauncher(threading.Thread):
                     device_metadata[key] = val
             #TODO call python script with args
             try:
-                cmd = 'python controller_tools.py setup cmode 172.24.16.75 \
+                cmd = 'python /etc/nodepool/scripts/ontapi_scripts/controller_tools.py setup cmode 172.24.16.75 \
                        admin Netapp123 myName nfs 172.24.16.124 255.255.255.192 \
                        172.24.16.64/26 172.24.16.65 aggr1 rax-vsim3-cluster-01 e0a'
                 self.log.debug("Beginning setup of device. CMD %s" % cmd)
@@ -2070,7 +2070,7 @@ class NodePool(threading.Thread):
                     #TODO check if subnode is device
                     if subnode.device_type != 'compute':
                         try:
-                            cmd = 'python controller_tools.py teardown cmode \
+                            cmd = 'python /etc/nodepool/scripts/ontapi_scripts/controller_tools.py teardown cmode \
                                    172.24.16.75 admin Netapp123 myName'
                             self.log.debug("Beginning teardown of device. CMD %s" % cmd)
                             output = subprocess.check_output(cmd)
