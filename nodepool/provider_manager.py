@@ -84,6 +84,10 @@ def make_server_dict(server):
         d['key_name'] = server.key_name
     if hasattr(server, 'progress'):
         d['progress'] = server.progress
+    if hasattr(server, 'metadata'):
+        d['metadata'] = server.metadata
+    else:
+        d['metadata'] = {}
     d['public_v4'] = get_public_ip(server)
     d['private_v4'] = get_private_ip(server)
     return d
@@ -444,11 +448,11 @@ class ProviderManager(TaskManager):
             if status == 'ERROR':
                 return resource
             elif status == 'ACTIVE':
-                for key, value in resource.metadata.items() :
-                    if key == 'rackconnect_automation_status':
-                        if value == 'DEPLOYED':
-                            print "Rackconnect automation complete"
-                            return resource
+                if hasattr(resource['metadata'], 'rackconnect_automation_status'):
+                    if resource['metadata']['rackconnect_automation_status'] == 'DEPLOYED':
+                        return resource
+                else:
+                    return resource
 
     def waitForServer(self, server_id, timeout=3600):
         return self._waitForResource('server', server_id, timeout)
