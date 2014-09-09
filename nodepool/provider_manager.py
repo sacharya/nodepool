@@ -448,13 +448,11 @@ class ProviderManager(TaskManager):
             if status == 'ERROR':
                 return resource
             elif status == 'ACTIVE':
+                self.log.info("Checking for Rackconnect")
                 if 'rackconnect_automation_status' in resource['metadata']:
-                    self.log.info("Checking for Rackconnect")
                     if resource['metadata']['rackconnect_automation_status'] == 'DEPLOYED':
                         self.log.info("Rackconnect DEPLOYED")
                         return resource
-                else:
-                    return resource
 
     def waitForServer(self, server_id, timeout=3600):
         return self._waitForResource('server', server_id, timeout)
