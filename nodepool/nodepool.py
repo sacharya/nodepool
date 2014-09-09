@@ -405,7 +405,7 @@ class NodeLauncher(threading.Thread):
                                           pool=self.provider.pool)
         if not ip:
             raise LaunchNetworkException("Unable to find public IP of server")
-        if hasattr(server['metadata'], 'rackconnect_automation_status'):
+        if 'rackconnect_automation_status' in server['metadata']:
             ip = server.get('private_v4')
 
         self.node.ip = ip
@@ -687,7 +687,7 @@ class SubNodeLauncher(threading.Thread):
             if not ip:
                 raise LaunchNetworkException("Unable to find public IP of server")
 
-            if hasattr(server['metadata'], 'rackconnect_automation_status'):
+            if 'rackconnect_automation_status' in server['metadata']:
                 ip = server.get('private_v4')
 
             self.subnode.ip = ip
@@ -1021,7 +1021,7 @@ class SnapshotImageUpdater(ImageUpdater):
             ssh_kwargs['pkey'] = key
         else:
             ssh_kwargs['password'] = server['admin_pass']
-        if hasattr(server['metadata'], 'rackconnect_automation_status'):
+        if 'rackconnect_automation_status' in server['metadata']:
             host = utils.ssh_connect(server['private_v4'], 'root', ssh_kwargs,
                                  timeout=CONNECT_TIMEOUT)
         else:
@@ -1033,7 +1033,7 @@ class SnapshotImageUpdater(ImageUpdater):
             # didn't occur), we can connect with a very sort timeout.
             for username in ['ubuntu', 'fedora', 'cloud-user']:
                 try:
-                    if hasattr(server['metadata'], 'rackconnect_automation_status'):
+                    if 'rackconnect_automation_status' in server['metadata']:
                         host = utils.ssh_connect(server['private_v4'], username,
                                              ssh_kwargs,
                                              timeout=10)
