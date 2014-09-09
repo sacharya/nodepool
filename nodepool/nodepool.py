@@ -702,7 +702,6 @@ class SubNodeLauncher(threading.Thread):
         else:
             self.log.debug("Creating subnode %s of type %s for node id: %s" % 
                            (self.subnode_id, subnode.device_type, self.node_id))
-            self.log.debug("BEEP BOOP BEEP BEEP")
             #run setup script
             device_metadata = json.loads(subnode.metadata)
             for key, val in device_metadata.items():
@@ -710,7 +709,15 @@ class SubNodeLauncher(threading.Thread):
                     val.replace("UUID", device_metadata["UUID"])
                     device_metadata[key] = val
             #TODO call python script with args
-            #subprocess.call('')
+            try:
+                cmd = 'python controller_tools.py setup cmode 172.24.16.75 \
+                       admin Netapp123 myName nfs 172.24.16.124 255.255.255.192 \
+                       172.24.16.64/26 172.24.16.65 aggr1 rax-vsim3-cluster-01 e0a'
+                self.log.debug("Beginning setup of device. CMD %s" % cmd)
+                output = subprocess.check_output(cmd)
+                self.log.debug("Finished setting up device. OUTPUT: %s" % output)
+            except:
+                self.log.error("Exception setting up subnode device. OUTPUT: %s" % output)
 
 
         # Save the elapsed time for statsd
@@ -2010,6 +2017,9 @@ class NodePool(threading.Thread):
                 manager.waitForServerDeletion(subnode.external_id)
             except provider_manager.NotFound:
                 pass
+        elif subnode.device_type != 'compute':
+            #TODO RUN DELETE SCRIPT
+            pass
         subnode.delete()
 
     def deleteNode(self, node_id):
@@ -2057,7 +2067,18 @@ class NodePool(threading.Thread):
                     self.log.debug('Deleting server %s for subnode id: '
                                    '%s of node id: %s' %
                                    (subnode.external_id, subnode.id, node.id))
-                    manager.cleanupServer(subnode.external_id)
+                    #TODO check if subnode is device
+                    if subnode.device_type != 'compute':
+                        try:
+                            cmd = 'python controller_tools.py teardown cmode \
+                                   172.24.16.75 admin Netapp123 myName'
+                            self.log.debug("Beginning teardown of device. CMD %s" % cmd)
+                            output = subprocess.check_output(cmd)
+                            self.log.debug("Finished setting up device. OUTPUT: %s" % output)
+                        except:
+                            self.log.error("Exception setting up subnode device. OUTPUT: %s" % output)
+                    else:
+                        manager.cleanupServer(subnode.external_id)
                 except provider_manager.NotFound:
                     pass
 
