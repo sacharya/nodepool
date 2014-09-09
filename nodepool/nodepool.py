@@ -1242,20 +1242,20 @@ class NodePool(threading.Thread):
         #    hostname:           str,
         #    concurrency:        int,
         #    metadata:           dict
-        for device_label in config['device-labels']:
-            d = Label()
-            d.name = device_label['name']
-            d.device_type = device_label['device-type']
-            if (hasattr(newconfig, 'device_labels') and 
-
-                d.device_type in newconfig.device_labels):
-                newconfig.device_labels[d.device_type].append(d)
-            else:
-                newconfig.device_labels[d.device_type] = [d]
-            d.ip = device_label['ip']
-            d.hostname = device_label.get('hostname', None)
-            d.concurrency = device_label.get('concurrency', 1)
-            d.metadata = device_label.get('metadata', {})
+        if hasattr(config, 'device-labels'):
+            for device_label in config['device-labels']:
+                d = Label()
+                d.name = device_label['name']
+                d.device_type = device_label['device-type']
+                if (hasattr(newconfig, 'device_labels') and 
+                    d.device_type in newconfig.device_labels):
+                    newconfig.device_labels[d.device_type].append(d)
+                else:
+                    newconfig.device_labels[d.device_type] = [d]
+                d.ip = device_label['ip']
+                d.hostname = device_label.get('hostname', None)
+                d.concurrency = device_label.get('concurrency', 1)
+                d.metadata = device_label.get('metadata', {})
 
 
         for provider in config['providers']:
