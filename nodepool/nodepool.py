@@ -32,6 +32,7 @@ import threading
 import time
 import yaml
 import zmq
+import uuid
 
 import allocation
 import jenkins_manager
@@ -704,7 +705,11 @@ class SubNodeLauncher(threading.Thread):
                            (self.subnode_id, subnode.device_type, self.node_id))
             self.log.debug("BEEP BOOP BEEP BEEP")
             #run setup script
-            device_metadata = subnode.metadata
+            device_metadata = json.loads(subnode.metadata)
+            for key, val in device_metadata.items():
+                if val.endswith("UUID"):
+                    val.replace("UUID", device_metadata["UUID"])
+                    device_metadata[key] = val
             #TODO call python script with args
             #subprocess.call('')
 
@@ -1979,9 +1984,11 @@ class NodePool(threading.Thread):
         timeout = provider.boot_timeout
         launch_timeout = provider.launch_timeout
         if label.subnode_device_type != 'compute':
+            subnode_uuid = uuid.uuid4()
+            device.metadata['uuid'] = subnode_uuid
             subnode = session.createSubNode(node, hostname=device.hostname, 
                                             ip=device.ip, device_type=label.subnode_device_type,
-                                            metadata=device.metadata)
+                                            metadata=json.dumps(device.metadata))
         else:
             #TODO GET METADATA AND ADD TO SUBNODE
             subnode = session.createSubNode(node, device_type=label.subnode_device_type)
