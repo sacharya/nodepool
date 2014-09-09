@@ -448,6 +448,8 @@ class ProviderManager(TaskManager):
             if status == 'ERROR':
                 return resource
             elif status == 'ACTIVE':
+                if resource_type == 'image':
+                    return resource
                 self.log.info("Checking for Rackconnect")
                 if 'rackconnect_automation_status' in resource['metadata']:
                     if resource['metadata']['rackconnect_automation_status'] == 'DEPLOYED':
