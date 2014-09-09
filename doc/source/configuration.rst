@@ -126,6 +126,7 @@ providers or images are used to create them).  Example::
     - name: multi-precise
       image: precise
       subnodes: 2
+      subnode-device-type: storage_virtual
       min-ready: 2
       hostname: '{label.name}-{provider.name}-{node_id}'
       subnode-hostname: '{label.name}-{provider.name}-{node_id}-{subnode_id}'
@@ -148,9 +149,41 @@ communicate directly with each other.  In the example above, for each
 Precise node added to the target system, two additional nodes will be
 created and associated with it.
 
+The 'subnode_device_type' is the type of subnode. It will match the "device-type"
+that is entered in the device-lables section.
+
 A script specified by `ready-script` can be used to perform any last minute
 changes to a node after it has been launched but before it is put in the READY
 state to receive jobs. For more information, see :ref:`scripts`.
+
+device labels
+-------------
+
+device-labels:
+  - name: netapp-vsims1
+    device-type: netapp-vsims
+    ip: 10.10.10.11
+    concurrency: 1
+    config_values:
+        - netapp_login: dan
+          netapp_password: dan
+          unique_attrs:
+            - netapp_vfiler
+              something_else
+  - name: netapp-vsims2
+    device-type: netapp-eseries
+    ip: 10.10.10.12
+    concurrency: 5
+
+
+Name is just a unique name to set these things apart
+
+Device-type will is a unique type you make up. Things will be grouped 
+and assigned to primary nodes based on this type.
+
+IP is just IP of node.
+
+Concurrency refers to how many nodes this can be assigned to.
 
 providers
 ---------

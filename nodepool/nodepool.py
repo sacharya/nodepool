@@ -539,6 +539,30 @@ class NodeLauncher(threading.Thread):
                      (env_vars, self.label.ready_script, n.hostname),
                      output=True)
 
+    def copyConfig(self, nodelist):
+        for role, n in nodelist:
+            if role == 'primary'and len(n.subnodes) > 0 and self.label.subnode_device_type != 'compute':
+                #NEED TO ADD CONFIG STUFF FOR THE NODE
+                                #create local.conf with all necessary params
+                local_file = open("/tmp/local.conf", "w")
+                local_file.write("[[post-config|$CINDER_CONF]]\n[DEFAULT]\n")
+                #comma separated list of backends
+                local_file.write("enabled_backends = ")
+                # create backend sections
+                # name them device_type_subnodeID
+                backend_names = []
+                for subnode in n.subnodes:
+                    backend_name = subnode.device_type + "_" + subnode.id
+                    backend_names.append(backend_name)
+
+                local_file.write("%s\n" % ",".join(backend_names))
+
+                #loop through subnodes and create sections for local.conf
+                for subnode in n.subnodes:
+                    backend_name = subnode.device_type + "_" + subnode.id
+                    local_file.write()
+
+                    local_file.write("volume_driver=cinder.volume.drivers.netapp.common.NetAppDriver")
 
 class SubNodeLauncher(threading.Thread):
     log = logging.getLogger("nodepool.SubNodeLauncher")
@@ -579,7 +603,7 @@ class SubNodeLauncher(threading.Thread):
 
             try:
                 start_time = time.time()
-                dt = self.launchSubNode(session)
+                dt = self.launchSubNode(session, self.subnode)
                 failed = False
                 statsd_key = 'ready'
             except Exception as e:
@@ -611,13 +635,11 @@ class SubNodeLauncher(threading.Thread):
                                        (self.subnode_id, self.node_id))
                     return
 
-    def launchSubNode(self, session):
+    def launchSubNode(self, session, subnode):
         start_time = time.time()
         timestamp = int(start_time)
 
-
-
-        if self.label.subnode_device_type == 'compute':
+        if subnode.device_type == 'compute':
             #compute only
             target = self.nodepool.config.targets[self.node_target_name]
             hostname = target.subnode_hostname.format(
@@ -673,9 +695,12 @@ class SubNodeLauncher(threading.Thread):
                 raise LaunchAuthException("Unable to connect via ssh")
         else:
             self.log.debug("Creating subnode %s of type %s for node id: %s" % 
-                           (self.subnode_id, self.label.subnode_device_type, self.node_id))
+                           (self.subnode_id, subnode.device_type, self.node_id))
             self.log.debug("BEEP BOOP BEEP BEEP")
-
+            #run setup script
+            device_metadata = subnode.metadata
+            #TODO call python script with args
+            #subprocess.call('')
 
 
         # Save the elapsed time for statsd
@@ -1190,11 +1215,21 @@ class NodePool(threading.Thread):
             # if image is in diskimages, mark it to build once
             l.is_diskimage = (l.image in newconfig.diskimages)
 
+        #TODO CHECK TO BE SURE CONFIG VALUES AND WHATNOT ARE ALLOWED.
+        #(NEED TO BE ALPHANUMERIC OR _)
+        #device:                 dict
+        #    name:               str,
+        #    device_type:        str,
+        #    ip:                 str,
+        #    hostname:           str,
+        #    concurrency:        int,
+        #    metadata:           dict
         for device_label in config['device-labels']:
             d = Label()
             d.name = device_label['name']
             d.device_type = device_label['device-type']
             if (hasattr(newconfig, 'device_labels') and 
+
                 d.device_type in newconfig.device_labels):
                 newconfig.device_labels[d.device_type].append(d)
             else:
@@ -1202,6 +1237,8 @@ class NodePool(threading.Thread):
             d.ip = device_label['ip']
             d.hostname = device_label.get('hostname', None)
             d.concurrency = device_label.get('concurrency', 1)
+            d.metadata = device_label.get('metadata', {})
+
 
         for provider in config['providers']:
             p = Provider()
@@ -1595,6 +1632,21 @@ class NodePool(threading.Thread):
         return nodes_to_launch
 
     def getAvailableDevice(self, session, device_type):
+        '''
+        session: nodedb.NodeDatabase session 
+        device_type: string mapping to type of device
+
+        return: device:                 dict
+                    name:               str,
+                    device_type:        str,
+                    ip:                 str,
+                    hostname:           str,
+                    concurrency:        int,
+                    config_file:        str
+                    [config_str]_dict:  dict (dynamically named)
+                        [key]: [val]    vals for config file. 
+                                        use prefix id-gen for uuid
+        '''
         all_devices = self.config.device_labels.get(device_type, [])
         used_devices = session.getSubNodesByType(device_type)
         reservation_per_ip = {dev.ip: 0 for dev in all_devices}
@@ -1915,9 +1967,12 @@ class NodePool(threading.Thread):
         launch_timeout = provider.launch_timeout
         if label.subnode_device_type != 'compute':
             subnode = session.createSubNode(node, hostname=device.hostname, 
-                                            ip=device.ip, device_type=label.subnode_device_type)
+                                            ip=device.ip, device_type=label.subnode_device_type,
+                                            metadata=device.metadata)
         else:
+            #TODO GET METADATA AND ADD TO SUBNODE
             subnode = session.createSubNode(node, device_type=label.subnode_device_type)
+
         t = SubNodeLauncher(self, provider, label, subnode.id,
                             node.id, node.target_name, timeout, launch_timeout,
                             node_az=node.az)

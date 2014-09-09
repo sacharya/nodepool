@@ -42,7 +42,7 @@ STATE_NAMES = {
     }
 
 from sqlalchemy import Table, Column, Integer, String, \
-    MetaData, create_engine
+    MetaData, Text, create_engine
 from sqlalchemy.orm import scoped_session, mapper, relationship, foreign
 from sqlalchemy.orm.session import Session, sessionmaker
 
@@ -116,6 +116,8 @@ subnode_table = Table(
     Column('state', Integer),
     # Time of last state change
     Column('state_time', Integer),
+    #
+    Column('metadata', Text)
     )
 
 
@@ -208,7 +210,7 @@ class Node(object):
 class SubNode(object):
     def __init__(self, node,
                  hostname=None, external_id=None, ip=None,
-                 device_type=None, state=BUILDING):
+                 device_type=None, metadata=None,  state=BUILDING):
         self.node_id = node.id
         self.provider_name = node.provider_name
         self.label_name = node.label_name
@@ -218,6 +220,7 @@ class SubNode(object):
         self.hostname = hostname
         self.device_type = device_type
         self.state = state
+        self.metadata = metadata
 
     def delete(self):
         session = Session.object_session(self)
