@@ -441,9 +441,9 @@ class ProviderManager(TaskManager):
                 self.log.debug('Status of %s %s: %s' %
                                (resource_type, resource_id, status))
             last_status = status
-            if status = 'ERROR':
+            if status == 'ERROR':
                 return resource
-            elif status = 'ACTIVE':
+            elif status == 'ACTIVE':
                 for key, value in server.metadata.items() :
                     if key == 'rackconnect_automation_status':
                         if value == 'DEPLOYED':

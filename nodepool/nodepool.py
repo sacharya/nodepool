@@ -1537,8 +1537,8 @@ class NodePool(threading.Thread):
         def count_nodes_and_subnodes(provider_name):
             count = 0
             for n in session.getNodes(provider_name):
-                compute_subnodes = [subnode if subnode.device_type == 'compute' 
-                                            for subnode in n.subnodes]
+                compute_subnodes = [subnode for subnode in n.subnodes 
+                                            if subnode.device_type == 'compute' ]
                 count += 1 + len(compute_subnodes)
             return count
 
