@@ -66,6 +66,12 @@ def get_public_ip(server, version=4):
             return addr['addr']
     return None
 
+def get_private_ip(server, version=4):
+    for addr in server.addresses.get('private', []):
+        if type(addr) == type(u''):  # Rackspace/openstack 1.0
+            return addr
+        if addr['version'] == version:  # Rackspace/openstack 1.1
+            return addr['addr']
 
 def make_server_dict(server):
     d = dict(id=str(server.id),
@@ -79,6 +85,7 @@ def make_server_dict(server):
     if hasattr(server, 'progress'):
         d['progress'] = server.progress
     d['public_v4'] = get_public_ip(server)
+    d['private_v4'] = get_private_ip(server)
     return d
 
 
@@ -434,8 +441,14 @@ class ProviderManager(TaskManager):
                 self.log.debug('Status of %s %s: %s' %
                                (resource_type, resource_id, status))
             last_status = status
-            if status in ['ACTIVE', 'ERROR']:
+            if status = 'ERROR':
                 return resource
+            elif status = 'ACTIVE':
+                for key, value in server.metadata.items() :
+                    if key == 'rackconnect_automation_status':
+                        if value == 'DEPLOYED':
+                            print "Rackconnect automation complete"
+                            return resource
 
     def waitForServer(self, server_id, timeout=3600):
         return self._waitForResource('server', server_id, timeout)
