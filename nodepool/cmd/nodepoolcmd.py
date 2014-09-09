@@ -222,7 +222,7 @@ class NodePoolCmd(object):
     def alien_list(self):
         self.pool.reconfigureManagers(self.pool.config)
 
-        t = PrettyTable(["Provider", "Hostname", "Server ID", "IP"])
+        t = PrettyTable(["Provider", "Hostname", "Server ID", "Public IP", "Private IP"])
         t.align = 'l'
         with self.pool.getDB().getSession() as session:
             for provider in self.pool.config.providers.values():
@@ -235,7 +235,7 @@ class NodePoolCmd(object):
                     if not session.getNodeByExternalID(
                         provider.name, server['id']):
                         t.add_row([provider.name, server['name'], server['id'],
-                                   server['public_v4']])
+                                   server['public_v4'], server['private_v4']])
         print t
 
     def alien_image_list(self):

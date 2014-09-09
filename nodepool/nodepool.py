@@ -405,6 +405,9 @@ class NodeLauncher(threading.Thread):
         if not ip:
             raise LaunchNetworkException("Unable to find public IP of server")
 
+	if server.metadata.hasattr('rackconnect_automation_status'):
+            ip = server.get('private_v4')
+
         self.node.ip = ip
         self.log.debug("Node id: %s is running, ip: %s, testing ssh" %
                        (self.node.id, ip))
@@ -683,6 +686,9 @@ class SubNodeLauncher(threading.Thread):
                                               pool=self.provider.pool)
             if not ip:
                 raise LaunchNetworkException("Unable to find public IP of server")
+
+            if server.metadata.hasattr('rackconnect_automation_status'):
+                ip = server.get('private_v4')
 
             self.subnode.ip = ip
             self.log.debug("Subnode id: %s for node id: %s is running, "
@@ -1011,17 +1017,24 @@ class SnapshotImageUpdater(ImageUpdater):
             ssh_kwargs['pkey'] = key
         else:
             ssh_kwargs['password'] = server['admin_pass']
-
-        host = utils.ssh_connect(server['public_v4'], 'root', ssh_kwargs,
+        if server.metadata.hasattr('rackconnect_automation_status'):
+            host = utils.ssh_connect(server['private_v4'], 'root', ssh_kwargs,
                                  timeout=CONNECT_TIMEOUT)
-
+        else:
+            host = utils.ssh_connect(server['public_v4'], 'root', ssh_kwargs,
+                                 timeout=CONNECT_TIMEOUT)
         if not host:
             # We have connected to the node but couldn't do anything as root
             # try distro specific users, since we know ssh is up (a timeout
             # didn't occur), we can connect with a very sort timeout.
             for username in ['ubuntu', 'fedora', 'cloud-user']:
                 try:
-                    host = utils.ssh_connect(server['public_v4'], username,
+                    if server.metadata.hasattr('rackconnect_automation_status'):
+                        host = utils.ssh_connect(server['private_v4'], username,
+                                             ssh_kwargs,
+                                             timeout=10)
+                    else:
+                        host = utils.ssh_connect(server['public_v4'], username,
                                              ssh_kwargs,
                                              timeout=10)
                     if host:
