@@ -444,7 +444,7 @@ class ProviderManager(TaskManager):
             if status == 'ERROR':
                 return resource
             elif status == 'ACTIVE':
-                for key, value in server.metadata.items() :
+                for key, value in resource.metadata.items() :
                     if key == 'rackconnect_automation_status':
                         if value == 'DEPLOYED':
                             print "Rackconnect automation complete"
