@@ -1735,8 +1735,10 @@ class NodePool(threading.Thread):
             self.log.info("Need to launch %s subnodes for node id: %s" %
                           (num_to_launch, node.id))
             for i in range(num_to_launch):
+                self.log.info("SUBNODE TYPE %s" % (subnode_device_type))
                 if subnode_device_type != 'compute':
                     device = self.getAvailableDevice(session, subnode_device_type)
+                    self.log.info("SUBNODE DEVICE %s" % device)
                     if device is not None:
                         self.launchSubNode(session, node, device)
                 else:
@@ -1990,8 +1992,7 @@ class NodePool(threading.Thread):
         timeout = provider.boot_timeout
         launch_timeout = provider.launch_timeout
         if label.subnode_device_type != 'compute':
-            subnode_uuid = uuid.uuid4()
-            device.metadata['uuid'] = subnode_uuid
+            device.metadata['UUID'] = uuid.uuid4()
             subnode = session.createSubNode(node, hostname=device.hostname, 
                                             ip=device.ip, device_type=label.subnode_device_type,
                                             metadata=json.dumps(device.metadata))
