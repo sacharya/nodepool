@@ -547,6 +547,12 @@ class NodeLauncher(threading.Thread):
     def copyConfig(self, nodelist, config_file):
         for role, n in nodelist:
             if role == 'primary'and len(n.subnodes) > 0 and self.label.subnode_device_type != 'compute':
+                connect_kwargs = dict(key_filename=self.image.private_key)
+                host = utils.ssh_connect(n.ip, self.image.username,
+                                         connect_kwargs=connect_kwargs,
+                                         timeout=self.timeout)
+                if not host:
+                    raise Exception("Unable to log in via SSH to copy config")
                 #'python /etc/nodepool/scripts/ontapi_scripts/controller_tools.py setup cmode 172.24.16.75 \
                 #       admin Netapp123 myName nfs 172.24.16.124 255.255.255.192 \
                 #       172.24.16.64/26 172.24.16.65 aggr1 rax-vsim3-cluster-01 e0a
@@ -562,7 +568,7 @@ class NodeLauncher(threading.Thread):
                 local_file.write("[cmodeNFS]\n")
                 local_file.write("netapp_login=admin\n")
                 local_file.write("netapp_password=Netapp123\n")
-                local_file.write("nfs_shares_config = /etc/cinder/shares.conf\n")
+                local_file.write("nfs_shares_config = /home/jenkins/shares.conf\n")
                 local_file.write("volume_driver = cinder.volume.drivers.netapp.common.NetAppDriver\n")
                 local_file.write("netapp_server_hostname = 172.24.16.75\n")
                 local_file.write("netapp_transport_type = http\n")
@@ -575,9 +581,12 @@ class NodeLauncher(threading.Thread):
                 local_file.close()
 
 
-                local_shares_file = open("/etc/cinder/shares.conf", "w")
+                local_shares_file = open("shares.conf", "w")
                 local_shares_file.write("172.24.16.124:/vol_myName")
                 local_shares_file.close()
+
+                host.scp('local.conf', '/home/jenkins/local.conf')
+                host.scp('shares.conf', '/home/jenkins/shares.conf')
                 '''
                 backend_names = []
                 for subnode in n.subnodes:
@@ -745,7 +754,7 @@ class SubNodeLauncher(threading.Thread):
                 self.log.debug("Finished setting up device. OUTPUT: %s" % output)
             except Exception as e:
                 self.log.error("Exception: %s" % str(e))
-                if hasattr(e.output) and e.output is not None:
+                if hasattr(e, 'output') and e.output is not None:
                     self.log.error("CMD output %s" % e.output)
 
 
@@ -2100,6 +2109,7 @@ class NodePool(threading.Thread):
                                    (subnode.external_id, subnode.id, node.id))
                     #TODO check if subnode is device
                     if subnode.device_type != 'compute':
+                        self.log.debug("Subnode not compute. Performing teardown.")
                         try:
                             cmd = 'python /etc/nodepool/scripts/ontapi_scripts/controller_tools.py teardown cmode \
                                    172.24.16.75 admin Netapp123 myName'
@@ -2108,7 +2118,7 @@ class NodePool(threading.Thread):
                             self.log.debug("Finished setting up device. OUTPUT: %s" % output)
                         except Exception as e:
                             self.log.error("Exception: %s" % str(e))
-                            if hasattr(e.output) and e.output is not None:
+                            if hasattr(e, 'output') and e.output is not None:
                                 self.log.error("CMD output %s" % e.output)
                     else:
                         manager.cleanupServer(subnode.external_id)
