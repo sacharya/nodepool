@@ -561,7 +561,7 @@ class NodeLauncher(threading.Thread):
                 local_file = open("/home/nodepool/local.conf", "w")
                 local_file.write("[[post-config|$CINDER_CONF]]\n[DEFAULT]\n")
                 #comma separated list of backends
-                local_file.write("enabled_backends = cmodeNFS")
+                local_file.write("enabled_backends = cmodeNFS\n")
                 # create backend sections
                 # name them device_type_subnodeID
 
