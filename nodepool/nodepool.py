@@ -1992,7 +1992,7 @@ class NodePool(threading.Thread):
         timeout = provider.boot_timeout
         launch_timeout = provider.launch_timeout
         if label.subnode_device_type != 'compute':
-            device.metadata['UUID'] = uuid.uuid4()
+            device.metadata['UUID'] = str(uuid.uuid4())
             subnode = session.createSubNode(node, hostname=device.hostname, 
                                             ip=device.ip, device_type=label.subnode_device_type,
                                             metadata=json.dumps(device.metadata))
