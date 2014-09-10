@@ -558,7 +558,7 @@ class NodeLauncher(threading.Thread):
                 #       172.24.16.64/26 172.24.16.65 aggr1 rax-vsim3-cluster-01 e0a
                 #NEED TO ADD CONFIG STUFF FOR THE NODE
                 #create local.conf with all necessary params
-                local_file = open("local.conf", "w")
+                local_file = open("/home/nodepool/local.conf", "w")
                 local_file.write("[[post-config|$CINDER_CONF]]\n[DEFAULT]\n")
                 #comma separated list of backends
                 local_file.write("enabled_backends = cmodeNFS")
@@ -581,12 +581,12 @@ class NodeLauncher(threading.Thread):
                 local_file.close()
 
 
-                local_shares_file = open("shares.conf", "w")
+                local_shares_file = open("/home/nodepool/shares.conf", "w")
                 local_shares_file.write("172.24.16.124:/vol_myName")
                 local_shares_file.close()
 
-                host.scp('local.conf', '/home/jenkins/local.conf')
-                host.scp('shares.conf', '/home/jenkins/shares.conf')
+                host.scp('/home/nodepool/local.conf', '/home/jenkins/local.conf')
+                host.scp('/home/nodepool/shares.conf', '/home/jenkins/shares.conf')
                 '''
                 backend_names = []
                 for subnode in n.subnodes:
@@ -2108,23 +2108,32 @@ class NodePool(threading.Thread):
                     self.log.debug('Deleting server %s for subnode id: '
                                    '%s of node id: %s' %
                                    (subnode.external_id, subnode.id, node.id))
-                    #TODO check if subnode is device
-                    if subnode.device_type != 'compute':
-                        self.log.debug("Subnode not compute. Performing teardown.")
-                        try:
-                            cmd = 'python /etc/nodepool/scripts/ontapi_scripts/controller_tools.py teardown cmode \
-                                   172.24.16.75 admin Netapp123 myName'
-                            self.log.debug("Beginning teardown of device. CMD %s" % cmd)
-                            output = subprocess.check_output(cmd, shell=True).decode('utf-8')
-                            self.log.debug("Finished setting up device. OUTPUT: %s" % output)
-                        except Exception as e:
-                            self.log.error("Exception: %s" % str(e))
-                            if hasattr(e, 'output') and e.output is not None:
-                                self.log.error("CMD output %s" % e.output)
-                    else:
-                        manager.cleanupServer(subnode.external_id)
+                    manager.cleanupServer(subnode.external_id)
                 except provider_manager.NotFound:
                     pass
+            elif subnode.device_type != 'compute':
+                self.log.debug('Deleting server %s for subnode id: '
+                               '%s of node id: %s' %
+                               (subnode.external_id, subnode.id, node.id))
+                #TODO check if subnode is device
+                self.log.debug("Subnode not compute. Performing teardown.")
+                try:
+                    cmd = 'python /etc/nodepool/scripts/ontapi_scripts/controller_tools.py teardown cmode \
+                           172.24.16.75 admin Netapp123 myName'
+
+
+                    self.log.debug("Beginning teardown of device. subnode: %s" % subnode.id)
+                    output = subprocess.check_output(cmd, shell=True).decode('utf-8')
+                    self.log.debug("Finished tearing down device.")
+                    self.log.debug('Deleting subnode %s of type %s for server %s' % 
+                               (subnode.id, subnode.device_type, node.id))
+                    subnode.delete()
+                except Exception as e:
+                    self.log.error("Exception tearing down subnode: %s Error: %s" % (subnode.id, str(e)))
+                    if hasattr(e, 'output') and e.output is not None:
+                        self.log.error("CMD output %s" % e.output)
+                    raise e
+
 
         if node.external_id:
             try:
@@ -2137,15 +2146,9 @@ class NodePool(threading.Thread):
             node.external_id = None
 
         for subnode in node.subnodes:
-            if subnode.external_id:
+            if subnode.external_id and subnode.device_type == 'compute':
                 manager.waitForServerDeletion(subnode.external_id)
-                subnode.delete()
-            elif subnode.device_type != 'compute':
-                #UNSETUP NODE IN MANAGER MABOB
-                self.log.debug('Deleting subnode %s of type %s for server %s' % 
-                               (subnode.id, subnode.device_type, node.id))
-                self.log.info("BOOP BEEP BOOP BOOP")
-                subnode.delete()
+                subnode.delete()                
 
         node.delete()
         self.log.info("Deleted node id: %s" % node.id)
