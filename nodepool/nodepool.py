@@ -756,6 +756,7 @@ class SubNodeLauncher(threading.Thread):
                 self.log.error("Exception: %s" % str(e))
                 if hasattr(e, 'output') and e.output is not None:
                     self.log.error("CMD output %s" % e.output)
+                raise e
 
 
         # Save the elapsed time for statsd
