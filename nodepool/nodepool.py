@@ -561,6 +561,7 @@ class NodeLauncher(threading.Thread):
                 local_file = open("/home/nodepool/local.conf", "w")
                 local_file.write("[[post-config|$CINDER_CONF]]\n[DEFAULT]\n")
                 #comma separated list of backends
+                local_file.write("default_volume_type = cmodeNFS\n")
                 local_file.write("enabled_backends = cmodeNFS\n")
                 # create backend sections
                 # name them device_type_subnodeID
@@ -578,6 +579,7 @@ class NodeLauncher(threading.Thread):
                 local_file.write("netapp_login = admin\n")
                 local_file.write("netapp_password = Netapp123\n")
                 local_file.write("netapp_vserver = vserver_myName\n")
+                local_file.write("volume_backend_name = cmodeNFS\n")
                 local_file.close()
 
 
