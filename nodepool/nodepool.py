@@ -709,15 +709,18 @@ class SubNodeLauncher(threading.Thread):
                     val.replace("UUID", device_metadata["UUID"])
                     device_metadata[key] = val
             #TODO call python script with args
+            output = ''
             try:
                 cmd = 'python /etc/nodepool/scripts/ontapi_scripts/controller_tools.py setup cmode 172.24.16.75 \
                        admin Netapp123 myName nfs 172.24.16.124 255.255.255.192 \
                        172.24.16.64/26 172.24.16.65 aggr1 rax-vsim3-cluster-01 e0a'
                 self.log.debug("Beginning setup of device. CMD %s" % cmd)
-                output = subprocess.check_output(cmd)
+                output = subprocess.check_output(cmd).decode('utf-8')
                 self.log.debug("Finished setting up device. OUTPUT: %s" % output)
-            except:
-                self.log.error("Exception setting up subnode device. OUTPUT: %s" % output)
+            except Exception as e:
+                self.log.error("Exception: %s" % str(e))
+                if e.output is not None:
+                    self.log.error("CMD output %s" % e.output)
 
 
         # Save the elapsed time for statsd
@@ -1992,7 +1995,7 @@ class NodePool(threading.Thread):
         timeout = provider.boot_timeout
         launch_timeout = provider.launch_timeout
         if label.subnode_device_type != 'compute':
-            device.metadata['UUID'] = str(uuid.uuid4())
+            device.metadata['UUID'] = str(uuid.uuid4()).replace('-', '')
             subnode = session.createSubNode(node, hostname=device.hostname, 
                                             ip=device.ip, device_type=label.subnode_device_type,
                                             metadata=json.dumps(device.metadata))
