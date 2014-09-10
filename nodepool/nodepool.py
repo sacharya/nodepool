@@ -441,6 +441,8 @@ class NodeLauncher(threading.Thread):
         self.writeNodepoolInfo(nodelist)
         if self.label.ready_script:
             self.runReadyScript(nodelist)
+        if self.label.config_file:
+            self.copyConfig(nodelist, self.label.config_file)
 
         # Do this before adding to jenkins to avoid a race where
         # Jenkins might immediately use the node before we've updated
@@ -542,17 +544,41 @@ class NodeLauncher(threading.Thread):
                      (env_vars, self.label.ready_script, n.hostname),
                      output=True)
 
-    def copyConfig(self, nodelist):
+    def copyConfig(self, nodelist, config_file):
         for role, n in nodelist:
             if role == 'primary'and len(n.subnodes) > 0 and self.label.subnode_device_type != 'compute':
+                #'python /etc/nodepool/scripts/ontapi_scripts/controller_tools.py setup cmode 172.24.16.75 \
+                #       admin Netapp123 myName nfs 172.24.16.124 255.255.255.192 \
+                #       172.24.16.64/26 172.24.16.65 aggr1 rax-vsim3-cluster-01 e0a
                 #NEED TO ADD CONFIG STUFF FOR THE NODE
-                                #create local.conf with all necessary params
-                local_file = open("/tmp/local.conf", "w")
+                #create local.conf with all necessary params
+                local_file = open("local.conf", "w")
                 local_file.write("[[post-config|$CINDER_CONF]]\n[DEFAULT]\n")
                 #comma separated list of backends
-                local_file.write("enabled_backends = ")
+                local_file.write("enabled_backends = cmodeNFS")
                 # create backend sections
                 # name them device_type_subnodeID
+
+                local_file.write("[cmodeNFS]\n")
+                local_file.write("netapp_login=admin\n")
+                local_file.write("netapp_password=Netapp123\n")
+                local_file.write("nfs_shares_config = /etc/cinder/shares.conf\n")
+                local_file.write("volume_driver = cinder.volume.drivers.netapp.common.NetAppDriver\n")
+                local_file.write("netapp_server_hostname = 172.24.16.75\n")
+                local_file.write("netapp_transport_type = http\n")
+                local_file.write("netapp_server_port = 80\n")
+                local_file.write("netapp_storage_protocol = nfs\n")
+                local_file.write("netapp_storage_family = ontap_cluster\n")
+                local_file.write("netapp_login = admin\n")
+                local_file.write("netapp_password = Netapp123\n")
+                local_file.write("netapp_vserver = vserver_myName\n")
+                local_file.close()
+
+
+                local_shares_file = open("/etc/cinder/shares.conf", "w")
+                local_shares_file.write("172.24.16.124:/vol_myName")
+                local_shares_file.close()
+                '''
                 backend_names = []
                 for subnode in n.subnodes:
                     backend_name = subnode.device_type + "_" + subnode.id
@@ -566,6 +592,7 @@ class NodeLauncher(threading.Thread):
                     local_file.write()
 
                     local_file.write("volume_driver=cinder.volume.drivers.netapp.common.NetAppDriver")
+                '''
 
 class SubNodeLauncher(threading.Thread):
     log = logging.getLogger("nodepool.SubNodeLauncher")
@@ -1232,6 +1259,7 @@ class NodePool(threading.Thread):
             l.subnodes = label.get('subnodes', 0)
             l.subnode_device_type = label.get('subnode-device-type', 'compute')
             l.ready_script = label.get('ready-script')
+            l.config_file = label.get('config-file')
             l.providers = {}
             for provider in label['providers']:
                 p = LabelProvider()
