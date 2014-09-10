@@ -1248,7 +1248,7 @@ class NodePool(threading.Thread):
         #    hostname:           str,
         #    concurrency:        int,
         #    metadata:           dict
-        if hasattr(config, 'device-labels'):
+        if 'device-labels' in config:
             for device_label in config['device-labels']:
                 d = Label()
                 d.name = device_label['name']
