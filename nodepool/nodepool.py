@@ -1684,6 +1684,8 @@ class NodePool(threading.Thread):
         return nodes_to_launch
 
     def getNeededSubNodes(self, session):
+        #TODO Add check to make sure 
+        #     primary node is not in deleting state
         nodes_to_launch = []        
         for node in session.getNodes():
             if node.label_name in self.config.labels:
@@ -2113,6 +2115,49 @@ class NodePool(threading.Thread):
                     manager.cleanupServer(subnode.external_id)
                 except provider_manager.NotFound:
                     pass
+            #TODO THIS COULD POSSIBLY BE MOVED TO LINE 2157
+            #FIGURE OUT IF THAT'S NECESSARY/GOOD IDEA. ALSO 
+            #BE SURE ORIGIN SUBNODES WORK
+            '''
+            elif subnode.device_type != 'compute':
+                self.log.debug('Deleting server %s for subnode id: '
+                               '%s of node id: %s' %
+                               (subnode.external_id, subnode.id, node.id))
+                #TODO check if subnode is device
+                self.log.debug("Subnode not compute. Performing teardown.")
+                try:
+                    cmd = 'python /etc/nodepool/scripts/ontapi_scripts/controller_tools.py teardown cmode \
+                           172.24.16.75 admin Netapp123 myName'
+
+
+                    self.log.debug("Beginning teardown of device. subnode: %s" % subnode.id)
+                    output = subprocess.check_output(cmd, shell=True).decode('utf-8')
+                    self.log.debug("Finished tearing down device.")
+                    self.log.debug('Deleting subnode %s of type %s for server %s' % 
+                               (subnode.id, subnode.device_type, node.id))
+                    subnode.delete()
+                except Exception as e:
+                    self.log.error("Exception tearing down subnode: %s Error: %s" % (subnode.id, str(e)))
+                    if hasattr(e, 'output') and e.output is not None:
+                        self.log.error("CMD output %s" % e.output)
+                    raise e
+            '''
+
+
+        if node.external_id:
+            try:
+                self.log.debug('Deleting server %s for node id: %s' %
+                               (node.external_id, node.id))
+                manager.cleanupServer(node.external_id)
+                manager.waitForServerDeletion(node.external_id)
+            except provider_manager.NotFound:
+                pass
+            node.external_id = None
+
+        for subnode in node.subnodes:
+            if subnode.external_id and subnode.device_type == 'compute':
+                manager.waitForServerDeletion(subnode.external_id)
+                subnode.delete() 
             elif subnode.device_type != 'compute':
                 self.log.debug('Deleting server %s for subnode id: '
                                '%s of node id: %s' %
@@ -2136,21 +2181,6 @@ class NodePool(threading.Thread):
                         self.log.error("CMD output %s" % e.output)
                     raise e
 
-
-        if node.external_id:
-            try:
-                self.log.debug('Deleting server %s for node id: %s' %
-                               (node.external_id, node.id))
-                manager.cleanupServer(node.external_id)
-                manager.waitForServerDeletion(node.external_id)
-            except provider_manager.NotFound:
-                pass
-            node.external_id = None
-
-        for subnode in node.subnodes:
-            if subnode.external_id and subnode.device_type == 'compute':
-                manager.waitForServerDeletion(subnode.external_id)
-                subnode.delete()                
 
         node.delete()
         self.log.info("Deleted node id: %s" % node.id)
