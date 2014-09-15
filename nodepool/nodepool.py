@@ -1326,6 +1326,7 @@ class NodePool(threading.Thread):
             p.use_neutron = bool(provider.get('networks', ()))
             p.networks = provider.get('networks')
             p.azs = provider.get('availability-zones')
+            p.rackconnected = provider.get('rackconnected', False)
             p.template_hostname = provider.get(
                 'template-hostname',
                 '{image.name}-{timestamp}.template.openstack.org'
@@ -1398,7 +1399,8 @@ class NodePool(threading.Thread):
             new_pm.launch_timeout != old_pm.provider.launch_timeout or
             new_pm.use_neutron != old_pm.provider.use_neutron or
             new_pm.networks != old_pm.provider.networks or
-            new_pm.azs != old_pm.provider.azs):
+            new_pm.azs != old_pm.provider.azs or
+            new_pm.rackconnected != old_pm.provider.rackconnected):
             return False
         new_images = new_pm.images
         old_images = old_pm.provider.images
@@ -1413,7 +1415,8 @@ class NodePool(threading.Thread):
                 new_images[k].setup != old_images[k].setup or
                 new_images[k].reset != old_images[k].reset or
                 new_images[k].username != old_images[k].username or
-                new_images[k].private_key != old_images[k].private_key):
+                new_images[k].private_key != old_images[k].private_key or
+                new_images[k].slave_private_key != old_images[k].slave_private_key):
                 return False
         return True
 
@@ -1776,10 +1779,9 @@ class NodePool(threading.Thread):
         # ahead of new nodes.
         subnodes_to_launch = self.getNeededSubNodes(session)
         for (node, num_to_launch, subnode_device_type) in subnodes_to_launch:
-            self.log.info("Need to launch %s subnodes for node id: %s" %
-                          (num_to_launch, node.id))
+            self.log.info("Need to launch %s subnodes of type %s for node id: %s" %
+                          (num_to_launch, subnode_device_type, node.id))
             for i in range(num_to_launch):
-                self.log.info("SUBNODE TYPE %s" % (subnode_device_type))
                 if subnode_device_type != 'compute':
                     device = self.getAvailableDevice(session, subnode_device_type)
                     self.log.info("SUBNODE DEVICE %s" % device)
@@ -2041,7 +2043,6 @@ class NodePool(threading.Thread):
                                             ip=device.ip, device_type=label.subnode_device_type,
                                             metadata=json.dumps(device.metadata))
         else:
-            #TODO GET METADATA AND ADD TO SUBNODE
             subnode = session.createSubNode(node, device_type=label.subnode_device_type)
 
         t = SubNodeLauncher(self, provider, label, subnode.id,
