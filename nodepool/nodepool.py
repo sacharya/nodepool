@@ -18,9 +18,11 @@
 
 from statsd import statsd
 import apscheduler.scheduler
+import copy
 import gear
 import json
 import logging
+import netaddr
 import os.path
 import paramiko
 import Queue
@@ -442,7 +444,7 @@ class NodeLauncher(threading.Thread):
         if self.label.ready_script:
             self.runReadyScript(nodelist)
         if self.label.config_file:
-            self.copyConfig(nodelist, self.label.config_file)
+            self.copyConfig(nodelist)
 
         # Do this before adding to jenkins to avoid a race where
         # Jenkins might immediately use the node before we've updated
@@ -544,7 +546,7 @@ class NodeLauncher(threading.Thread):
                      (env_vars, self.label.ready_script, n.hostname),
                      output=True)
 
-    def copyConfig(self, nodelist, config_file):
+    def copyConfig(self, nodelist):
         for role, n in nodelist:
             if role == 'primary'and len(n.subnodes) > 0 and self.label.subnode_device_type != 'compute':
                 connect_kwargs = dict(key_filename=self.image.private_key)
@@ -553,42 +555,12 @@ class NodeLauncher(threading.Thread):
                                          timeout=self.timeout)
                 if not host:
                     raise Exception("Unable to log in via SSH to copy config")
-                #'python /etc/nodepool/scripts/ontapi_scripts/controller_tools.py setup cmode 172.24.16.75 \
-                #       admin Netapp123 myName nfs 172.24.16.124 255.255.255.192 \
-                #       172.24.16.64/26 172.24.16.65 aggr1 rax-vsim3-cluster-01 e0a
-                #NEED TO ADD CONFIG STUFF FOR THE NODE
+
                 #create local.conf with all necessary params
-                local_file = open("/home/nodepool/local.conf", "w")
-                local_file.write("[[post-config|$CINDER_CONF]]\n[DEFAULT]\n")
-                #comma separated list of backends
-                local_file.write("default_volume_type = cmodeNFS\n")
-                local_file.write("enabled_backends = cmodeNFS\n")
-                # create backend sections
-                # name them device_type_subnodeID
+                device_manager = getattr(provider_manager, subnode.provider_class)(node=n)
+                device_manager.configure_primary(host, self.label)
 
-                local_file.write("[cmodeNFS]\n")
-                local_file.write("netapp_login=admin\n")
-                local_file.write("netapp_password=Netapp123\n")
-                local_file.write("nfs_shares_config = /home/jenkins/shares.conf\n")
-                local_file.write("volume_driver = cinder.volume.drivers.netapp.common.NetAppDriver\n")
-                local_file.write("netapp_server_hostname = 172.24.16.75\n")
-                local_file.write("netapp_transport_type = http\n")
-                local_file.write("netapp_server_port = 80\n")
-                local_file.write("netapp_storage_protocol = nfs\n")
-                local_file.write("netapp_storage_family = ontap_cluster\n")
-                local_file.write("netapp_login = admin\n")
-                local_file.write("netapp_password = Netapp123\n")
-                local_file.write("netapp_vserver = vserver_myName\n")
-                local_file.write("volume_backend_name = cmodeNFS\n")
-                local_file.close()
-
-
-                local_shares_file = open("/home/nodepool/shares.conf", "w")
-                local_shares_file.write("172.24.16.124:/vol_myName")
-                local_shares_file.close()
-
-                host.scp('/home/nodepool/local.conf', '/home/jenkins/local.conf')
-                host.scp('/home/nodepool/shares.conf', '/home/jenkins/shares.conf')
+                
                 '''
                 backend_names = []
                 for subnode in n.subnodes:
@@ -740,20 +712,9 @@ class SubNodeLauncher(threading.Thread):
         else:
             self.log.debug("Creating subnode %s of type %s for node id: %s" % 
                            (self.subnode_id, subnode.device_type, self.node_id))
-            #run setup script
-            device_metadata = json.loads(subnode.metadata)
-            for key, val in device_metadata.items():
-                if val.endswith("UUID"):
-                    val.replace("UUID", device_metadata["UUID"])
-                    device_metadata[key] = val
-            #TODO call python script with args
             try:
-                cmd = 'python /etc/nodepool/scripts/ontapi_scripts/controller_tools.py setup cmode 172.24.16.75 \
-                       admin Netapp123 myName nfs 172.24.16.124 255.255.255.192 \
-                       172.24.16.64/26 172.24.16.65 aggr1 rax-vsim3-cluster-01 e0a'
-                self.log.debug("Beginning setup of device. CMD %s" % cmd)
-                output = subprocess.check_output(cmd, shell=True).decode('utf-8')
-                self.log.debug("Finished setting up device. OUTPUT: %s" % output)
+                device_manager = getattr(provider_manager, subnode.provider_class)(subnode=subnode)
+                device_manager.setup_device()
             except Exception as e:
                 self.log.error("Exception: %s" % str(e))
                 if hasattr(e, 'output') and e.output is not None:
@@ -1273,6 +1234,7 @@ class NodePool(threading.Thread):
             l.ready_script = label.get('ready-script')
             l.config_file = label.get('config-file')
             l.providers = {}
+            l.default_vol_type =  label.get('default-vol-type', '')
             for provider in label['providers']:
                 p = LabelProvider()
                 p.name = provider['name']
@@ -1283,13 +1245,6 @@ class NodePool(threading.Thread):
 
         #TODO CHECK TO BE SURE CONFIG VALUES AND WHATNOT ARE ALLOWED.
         #(NEED TO BE ALPHANUMERIC OR _)
-        #device:                 dict
-        #    name:               str,
-        #    device_type:        str,
-        #    ip:                 str,
-        #    hostname:           str,
-        #    concurrency:        int,
-        #    metadata:           dict
         if 'device-labels' in config:
             for device_label in config['device-labels']:
                 d = Label()
@@ -1301,7 +1256,10 @@ class NodePool(threading.Thread):
                 else:
                     newconfig.device_labels[d.device_type] = [d]
                 d.ip = device_label['ip']
+                d.ip_pool_subnet = device_label['ip-pool-subnet']
+                d.provider_class = device_label['provider-class']
                 d.hostname = device_label.get('hostname', None)
+                d.manage_script = device_label.get('manage-script', '')
                 d.concurrency = device_label.get('concurrency', 1)
                 d.metadata = device_label.get('metadata', {})
 
@@ -1702,38 +1660,49 @@ class NodePool(threading.Thread):
                     nodes_to_launch.append((node, deficit, device_type))
         return nodes_to_launch
 
-    def getAvailableDevice(self, session, device_type):
-        '''
-        session: nodedb.NodeDatabase session 
-        device_type: string mapping to type of device
-
-        return: device:                 dict
-                    name:               str,
-                    device_type:        str,
-                    ip:                 str,
-                    hostname:           str,
-                    concurrency:        int,
-                    config_file:        str
-                    [config_str]_dict:  dict (dynamically named)
-                        [key]: [val]    vals for config file. 
-                                        use prefix id-gen for uuid
-        '''
+    def reserveNewDevice(self, session, node, device_type):
+        #compare all devices to used devices to find 
+        #current available devices
         all_devices = self.config.device_labels.get(device_type, [])
         used_devices = session.getSubNodesByType(device_type)
-        reservation_per_ip = {dev.ip: 0 for dev in all_devices}
-        device_to_use = None
-        for used_device in used_devices:
-            ip = used_device.ip
-            if ip in reservation_per_ip:
-                reservation_per_ip[ip] += 1
+        reservation_per_ip = {}
+        my_device = None        
+
+        for device in used_devices:
+            reservation_per_ip[device.ip] = reservation_per_ip.get(device.ip, 0)+1
+
         for device in all_devices:
             allowed_concurrency = device.concurrency
             current_concurrency = reservation_per_ip[device.ip]
             if allowed_concurrency > current_concurrency:
-                device_to_use = device
+                my_device = device
+                break
 
-        return device_to_use
+        #No devices available. Wait for next round.
+        if my_device == None:
+            self.log.debug("No available device of type %s" % device_type)
+            return None
 
+        #run some pre setup functions for given device provider.
+        device_manager = getattr(provider_manager, my_device.provider_class)()
+        device_to_use = device_manager.prepare(session, copy.copy(my_device))
+
+        #prepare function will return None and wait for next round
+        #if we're still waiting on resources.
+        if device_to_use != None:
+            #reserve device in db
+            subnode = session.createSubNode(node, hostname=device_to_use.hostname,
+                                            ip=device_to_use.ip,
+                                            secondary_ip=device_to_use.secondary_ip,
+                                            device_name=device_to_use.name,
+                                            device_type=device_to_use.device_type,
+                                            metadata=json.dumps(device_to_use.metadata),
+                                            manage_script=device_to_use.manage_script,
+                                            provider_class=device_to_use.provider_class)
+            return subnode
+        else
+            self.log.debug("Prepare for provider %s returned None." % my_device.provider_class)
+            return None
 
     def updateConfig(self):
         config = self.loadConfig()
@@ -1783,10 +1752,9 @@ class NodePool(threading.Thread):
                           (num_to_launch, subnode_device_type, node.id))
             for i in range(num_to_launch):
                 if subnode_device_type != 'compute':
-                    device = self.getAvailableDevice(session, subnode_device_type)
-                    self.log.info("SUBNODE DEVICE %s" % device)
-                    if device is not None:
-                        self.launchSubNode(session, node, device)
+                    subnode = self.reserveNewDevice(session, node, subnode_device_type)
+                    if subnode is not None:
+                        self.launchSubNode(session, node, subnode)
                 else:
                     self.launchSubNode(session, node)
 
@@ -2025,24 +1993,19 @@ class NodePool(threading.Thread):
                          launch_timeout)
         t.start()
 
-    def launchSubNode(self, session, node, device=None):
+    def launchSubNode(self, session, node, subnode=None):
         try:
-            self._launchSubNode(session, node, device)
+            self._launchSubNode(session, node, subnode)
         except Exception:
             self.log.exception(
                 "Could not launch subnode for node id: %s", node.id)
 
-    def _launchSubNode(self, session, node, device=None):
+    def _launchSubNode(self, session, node, subnode=None):
         provider = self.config.providers[node.provider_name]
         label = self.config.labels[node.label_name]
         timeout = provider.boot_timeout
         launch_timeout = provider.launch_timeout
-        if label.subnode_device_type != 'compute':
-            device.metadata['UUID'] = str(uuid.uuid4()).replace('-', '')
-            subnode = session.createSubNode(node, hostname=device.hostname, 
-                                            ip=device.ip, device_type=label.subnode_device_type,
-                                            metadata=json.dumps(device.metadata))
-        else:
+        if label.subnode_device_type == 'compute':
             subnode = session.createSubNode(node, device_type=label.subnode_device_type)
 
         t = SubNodeLauncher(self, provider, label, subnode.id,
@@ -2132,23 +2095,11 @@ class NodePool(threading.Thread):
             if subnode.external_id and subnode.device_type == 'compute':
                 manager.waitForServerDeletion(subnode.external_id)
                 subnode.delete() 
-            elif subnode.device_type != 'compute':
-                self.log.debug('Deleting server %s for subnode id: '
-                               '%s of node id: %s' %
-                               (subnode.external_id, subnode.id, node.id))
-                #TODO check if subnode is device
-                self.log.debug("Subnode not compute. Performing teardown.")
+            else:
+                self.log.debug("Performing subnode teardown.")
                 try:
-                    cmd = 'python /etc/nodepool/scripts/ontapi_scripts/controller_tools.py teardown cmode \
-                           172.24.16.75 admin Netapp123 myName'
-
-
-                    self.log.debug("Beginning teardown of device. subnode: %s" % subnode.id)
-                    output = subprocess.check_output(cmd, shell=True).decode('utf-8')
-                    self.log.debug("Finished tearing down device.")
-                    self.log.debug('Deleting subnode %s of type %s for server %s' % 
-                               (subnode.id, subnode.device_type, node.id))
-                    subnode.delete()
+                    device_manager = getattr(provider_manager, subnode.provider_class)(subnode=subnode)
+                    device_manager.teardown_device()
                 except Exception as e:
                     self.log.error("Exception tearing down subnode: %s Error: %s" % (subnode.id, str(e)))
                     if hasattr(e, 'output') and e.output is not None:

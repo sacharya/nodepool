@@ -163,7 +163,27 @@ device-labels:
   - name: netapp-vsims1
     device-type: netapp-vsims
     ip: 10.10.10.11
+    provider_class: NetAppDeviceManager
     concurrency: 1
+    metadata:
+      setup_script_data:
+        - ontapi_scripts/controller_tools.py 
+          setup 
+          cmode 
+          172.24.16.75
+          admin 
+          Netapp123
+          myName
+          nfs
+          172.24.16.124
+          255.255.255.192
+          172.24.16.64/26
+          172.24.16.65
+          aggr1
+          rax-vsim3-cluster-01
+          e0a
+      teardown_script_data:
+        - 
     config_values:
         - netapp_login: dan
           netapp_password: dan

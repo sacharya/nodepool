@@ -116,8 +116,12 @@ subnode_table = Table(
     Column('state', Integer),
     # Time of last state change
     Column('state_time', Integer),
-    #
-    Column('metadata', Text)
+    # Metadata for use with scripts etc.
+    Column('metadata', Text),
+    # Class to use for setting up/destroying subnode
+    Column('provider_class', String(255)),
+    # Script for provider class to run on setup
+    Column('manage_script', String(255)),
     )
 
 
@@ -209,18 +213,22 @@ class Node(object):
 
 class SubNode(object):
     def __init__(self, node,
-                 hostname=None, external_id=None, ip=None,
-                 device_type=None, metadata=None,  state=BUILDING):
+                 hostname=None, external_id=None, 
+                 ip=None, secondary_ip=None, device_name=None, device_type=None, metadata=None,
+                 provider_class=None, manage_script=None, state=BUILDING):
         self.node_id = node.id
         self.provider_name = node.provider_name
         self.label_name = node.label_name
         self.target_name = node.target_name
         self.external_id = external_id
         self.ip = ip
+        self.secondary_ip = secondary_ip
         self.hostname = hostname
         self.device_type = device_type
         self.state = state
         self.metadata = metadata
+        self.provider_class = provider_class
+        self.manage_script = manage_script
 
     def delete(self):
         session = Session.object_session(self)

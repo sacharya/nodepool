@@ -16,6 +16,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import logging
 import paramiko
 import novaclient
@@ -281,6 +282,141 @@ class FindNetworkTask(Task):
         network = client.tenant_networks.find(**self.args)
         return dict(id=str(network.id))
 
+class NetAppDeviceManager(TaskManager):
+    log = logging.getLogger("nodepool.NetAppDeviceManager")
+
+    def __init__(self, node=None, subnode=None):
+        self.node = node
+        self.subnode = subnode
+
+    def prepare(self, session, device):
+        used_devices = session.getSubNodesByType(device.device_type)
+        used_secondary_ips = [dev.secondary_ip for dev in used_devices]
+        ip_pool = [str(ip) for ip in netaddr.IPNetwork(device.ip_pool_subnet)
+                           if ip not in used_secondary_ips]
+        if len(ip_pool) > 0:
+            device.secondary_ip = ip_pool[0]
+            device.metadata['UUID'] = str(uuid.uuid4()).replace('-', '')
+            return device
+        return None
+
+    def setup_device(self):
+        #Ex. Command
+        #'python /etc/nodepool/scripts/ontapi_scripts/controller_tools.py setup cmode 172.24.16.75 \
+        # admin Netapp123 myName nfs 172.24.16.124 255.255.255.192 \
+        # 172.24.16.64/26 172.24.16.65 aggr1 rax-vsim3-cluster-01 e0a'
+        #
+        metadata = json.loads(self.subnode.metadata)
+        cmd = "python /etc/nodepool/scripts/{script_path} \
+               {func} {mode} {controller_ip} {user} {pass} \
+               {ident} {protocol} {vserver_ip} {vserver_netmask} \
+               {vserver_subnet} {vserver_gateway} {aggregate} \
+               {home_node} {home_port}"
+        cmd.format(script_path=subnode.manage_script,
+                   func='setup',
+                   mode=subnode.metadata["mode"],
+                   controller_ip=subnode.ip,
+                   user=subnode.metadata["user"],
+                   pass=subnode.metadata["pass"],
+                   ident=subnode.metadata["UUID"],
+                   protocol=subnode.metadata["protocol"],
+                   vserver_ip=subnode.secondary_ip,
+                   vserver_netmask=subnode.metadata["vserver_netmask"],
+                   vserver_subnet=subnode.metadata["vserver_subnet"],
+                   vserver_gateway=subnode.metadata["vserver_gateway"],
+                   aggregate=subnode.metadata["aggregate"],
+                   home_node=subnode.metadata["home_node"],
+                   home_port=subnode.metadata["home_port"])
+
+        self.log.debug("Beginning setup of device. CMD %s" % cmd)
+        output = subprocess.check_output(cmd, shell=True).decode('utf-8')
+        self.log.debug("Finished setting up device. OUTPUT: %s" % output)
+        return output
+
+    def teardown_device(self):
+        #Ex. Command
+        #'python /etc/nodepool/scripts/ontapi_scripts/controller_tools.py teardown cmode \
+        #172.24.16.75 admin Netapp123 myName'
+        metadata = json.loads(self.subnode.metadata)
+        cmd = 'python /etc/nodepool/scripts/{script_path} \
+               {func} {mode} {controller_ip} {user} {pass} \
+               {ident}'
+        cmd.format(script_path=subnode.manage_script,
+                   func='teardown',
+                   mode=subnode.metadata["mode"],
+                   controller_ip=subnode.ip,
+                   user=subnode.metadata["user"],
+                   pass=subnode.metadata["pass"],
+                   ident=subnode.metadata["UUID"])
+
+        self.log.debug("Beginning teardown of device. subnode: %s" % subnode.id)
+        output = subprocess.check_output(cmd, shell=True).decode('utf-8')
+        self.log.debug("Finished tearing down device.")
+        self.log.debug('Deleting subnode %s of type %s for server %s' % 
+                   (subnode.id, subnode.device_type, node.id))
+        subnode.delete()
+        return output
+
+    def configure_primary(self, host, label):
+        try:
+            local_file = open("/home/nodepool/" + label.config_file, "w")
+            local_shares_file = open("/home/nodepool/shares.conf", "w")
+            local_file.write("[[post-config|$CINDER_CONF]]\n[DEFAULT]\n")
+
+            subnodes = self.node.subnodes
+            backend_names = []
+            default_vol_name = ''
+            for subnode in subnodes:
+                metadata = json.loads(subnode.metadata)
+                backend_names.append(subnode.device_type + "_" + metadata['UUID'])
+                if subnode.device_type == label.default_vol_type:
+                    default_vol_name = subnode.device_type + "_" + metadata['UUID']
+
+            
+            #comma separated list of backends
+            local_file.write("default_volume_type = %s\n" % default_vol_name)
+            local_file.write("enabled_backends = %s\n" % ','.join(backend_names))
+
+            for subnode in subnodes:
+                metadata = json.loads(subnode.metadata)
+                local_file.write("[%s]\n" + subnode.device_type + "_" + metadata['UUID'])
+                for key,val in metadata["config"].items():
+                    local_file.write("%s=%s\n" % (key,val.replace('UUID', metadata['UUID'])))
+
+            for subnode in subnodes:
+                local_shares_file.write("%s:/vol_%s\n" % (subnode.secondary_ip, metadata['UUID']))
+        except Exception as e:
+            self.log.error("Exception configuring node %s" % self.node.id)
+            raise e
+        finally:
+            local_file.close()
+            local_shares_file.close()
+
+
+        # create backend sections
+        # name them device_type_subnodeID
+        #local_file.write("[cmodeNFS]\n")
+        #local_file.write("netapp_login=admin\n")
+        #local_file.write("netapp_password=Netapp123\n")
+        #local_file.write("nfs_shares_config = /home/jenkins/shares.conf\n")
+        #local_file.write("volume_driver = cinder.volume.drivers.netapp.common.NetAppDriver\n")
+        #local_file.write("netapp_server_hostname = 172.24.16.75\n")
+        #local_file.write("netapp_transport_type = http\n")
+        #local_file.write("netapp_server_port = 80\n")
+        #local_file.write("netapp_storage_protocol = nfs\n")
+        #local_file.write("netapp_storage_family = ontap_cluster\n")
+        #local_file.write("netapp_login = admin\n")
+        #local_file.write("netapp_password = Netapp123\n")
+        #local_file.write("netapp_vserver = vserver_myName\n" % )
+        #local_file.write("volume_backend_name = cmodeNFS\n")
+        #local_file.close()
+
+        #local_shares_file = open("/home/nodepool/shares.conf", "w")
+        #local_shares_file.write("172.24.16.124:/vol_myName")
+        #local_shares_file.close()
+
+        host.scp('/home/nodepool/local.conf', '/home/jenkins/local.conf')
+        host.scp('/home/nodepool/shares.conf', '/home/jenkins/shares.conf')
 
 class ProviderManager(TaskManager):
     log = logging.getLogger("nodepool.ProviderManager")
