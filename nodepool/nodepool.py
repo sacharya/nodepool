@@ -22,19 +22,16 @@ import copy
 import gear
 import json
 import logging
-import netaddr
 import os.path
 import paramiko
 import Queue
 import random
 import re
 import shlex
-import subprocess
 import threading
 import time
 import yaml
 import zmq
-import uuid
 
 import allocation
 import jenkins_manager
@@ -616,7 +613,7 @@ class SubNodeLauncher(threading.Thread):
 
             try:
                 start_time = time.time()
-                dt = self.launchSubNode(session, self.subnode)
+                dt = self.launchSubNode(session)
                 failed = False
                 statsd_key = 'ready'
             except Exception as e:
@@ -648,11 +645,11 @@ class SubNodeLauncher(threading.Thread):
                                        (self.subnode_id, self.node_id))
                     return
 
-    def launchSubNode(self, session, subnode):
+    def launchSubNode(self, session):
         start_time = time.time()
         timestamp = int(start_time)
 
-        if subnode.device_type == 'compute':
+        if self.subnode.device_type == 'compute':
             #compute only
             target = self.nodepool.config.targets[self.node_target_name]
             hostname = target.subnode_hostname.format(
@@ -711,9 +708,9 @@ class SubNodeLauncher(threading.Thread):
                 raise LaunchAuthException("Unable to connect via ssh")
         else:
             self.log.debug("Creating subnode %s of type %s for node id: %s" % 
-                           (self.subnode_id, subnode.device_type, self.node_id))
+                           (self.subnode_id, self.subnode.device_type, self.node_id))
             try:
-                device_manager = getattr(provider_manager, subnode.provider_class)(subnode=subnode)
+                device_manager = getattr(provider_manager, self.subnode.provider_class)(subnode=self.subnode)
                 device_manager.setup_device()
             except Exception as e:
                 self.log.error("Exception: %s" % str(e))
@@ -1649,7 +1646,7 @@ class NodePool(threading.Thread):
         #     primary node is not in deleting state
         nodes_to_launch = []        
         for node in session.getNodes():
-            if node.label_name in self.config.labels:
+            if node.label_name in self.config.labels and node.state != nodedb.DELETE:
                 expected_subnodes = \
                     self.config.labels[node.label_name].subnodes
                 active_subnodes = len([n for n in node.subnodes
@@ -1665,15 +1662,15 @@ class NodePool(threading.Thread):
         #current available devices
         all_devices = self.config.device_labels.get(device_type, [])
         used_devices = session.getSubNodesByType(device_type)
-        reservation_per_ip = {}
+        concurrency_per_ip = {}
         my_device = None        
 
         for device in used_devices:
-            reservation_per_ip[device.ip] = reservation_per_ip.get(device.ip, 0)+1
+            concurrency_per_ip[device.ip] = concurrency_per_ip.get(device.ip, 0)+1
 
         for device in all_devices:
             allowed_concurrency = device.concurrency
-            current_concurrency = reservation_per_ip[device.ip]
+            current_concurrency = concurrency_per_ip.get(device.ip, 0)
             if allowed_concurrency > current_concurrency:
                 my_device = device
                 break
@@ -1700,7 +1697,7 @@ class NodePool(threading.Thread):
                                             manage_script=device_to_use.manage_script,
                                             provider_class=device_to_use.provider_class)
             return subnode
-        else
+        else:
             self.log.debug("Prepare for provider %s returned None." % my_device.provider_class)
             return None
 

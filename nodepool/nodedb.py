@@ -112,6 +112,8 @@ subnode_table = Table(
     Column('external_id', String(255)),
     # Primary IP address
     Column('ip', String(255)),
+    # Secondary IP address
+    Column('secondary_ip', String(255)),
     # One of the above values
     Column('state', Integer),
     # Time of last state change

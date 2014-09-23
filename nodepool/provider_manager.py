@@ -19,6 +19,7 @@
 import json
 import logging
 import paramiko
+import netaddr
 import novaclient
 import novaclient.client
 import novaclient.extension
@@ -27,7 +28,9 @@ import threading
 import glanceclient
 import glanceclient.client
 import keystoneclient.v2_0.client as ksclient
+import subprocess
 import time
+import uuid
 
 import fakeprovider
 from task_manager import Task, TaskManager
@@ -308,25 +311,25 @@ class NetAppDeviceManager(TaskManager):
         #
         metadata = json.loads(self.subnode.metadata)
         cmd = "python /etc/nodepool/scripts/{script_path} \
-               {func} {mode} {controller_ip} {user} {pass} \
+               {func} {mode} {controller_ip} {user} {password} \
                {ident} {protocol} {vserver_ip} {vserver_netmask} \
                {vserver_subnet} {vserver_gateway} {aggregate} \
                {home_node} {home_port}"
-        cmd.format(script_path=subnode.manage_script,
+        cmd = cmd.format(script_path=self.subnode.manage_script,
                    func='setup',
-                   mode=subnode.metadata["mode"],
-                   controller_ip=subnode.ip,
-                   user=subnode.metadata["user"],
-                   pass=subnode.metadata["pass"],
-                   ident=subnode.metadata["UUID"],
-                   protocol=subnode.metadata["protocol"],
-                   vserver_ip=subnode.secondary_ip,
-                   vserver_netmask=subnode.metadata["vserver_netmask"],
-                   vserver_subnet=subnode.metadata["vserver_subnet"],
-                   vserver_gateway=subnode.metadata["vserver_gateway"],
-                   aggregate=subnode.metadata["aggregate"],
-                   home_node=subnode.metadata["home_node"],
-                   home_port=subnode.metadata["home_port"])
+                   mode=metadata["mode"],
+                   controller_ip=self.subnode.ip,
+                   user=metadata["user"],
+                   password=metadata["pass"],
+                   ident=metadata["UUID"],
+                   protocol=metadata["protocol"],
+                   vserver_ip=self.subnode.secondary_ip,
+                   vserver_netmask=metadata["vserver_netmask"],
+                   vserver_subnet=metadata["vserver_subnet"],
+                   vserver_gateway=metadata["vserver_gateway"],
+                   aggregate=metadata["aggregate"],
+                   home_node=metadata["home_node"],
+                   home_port=metadata["home_port"])
 
         self.log.debug("Beginning setup of device. CMD %s" % cmd)
         output = subprocess.check_output(cmd, shell=True).decode('utf-8')
@@ -339,22 +342,22 @@ class NetAppDeviceManager(TaskManager):
         #172.24.16.75 admin Netapp123 myName'
         metadata = json.loads(self.subnode.metadata)
         cmd = 'python /etc/nodepool/scripts/{script_path} \
-               {func} {mode} {controller_ip} {user} {pass} \
+               {func} {mode} {controller_ip} {user} {password} \
                {ident}'
-        cmd.format(script_path=subnode.manage_script,
+        cmd = cmd.format(script_path=self.subnode.manage_script,
                    func='teardown',
-                   mode=subnode.metadata["mode"],
-                   controller_ip=subnode.ip,
-                   user=subnode.metadata["user"],
-                   pass=subnode.metadata["pass"],
-                   ident=subnode.metadata["UUID"])
+                   mode=metadata["mode"],
+                   controller_ip=self.subnode.ip,
+                   user=metadata["user"],
+                   password=metadata["pass"],
+                   ident=metadata["UUID"])
 
-        self.log.debug("Beginning teardown of device. subnode: %s" % subnode.id)
+        self.log.debug("Beginning teardown of device. subnode: %s" % self.subnode.id)
         output = subprocess.check_output(cmd, shell=True).decode('utf-8')
         self.log.debug("Finished tearing down device.")
         self.log.debug('Deleting subnode %s of type %s for server %s' % 
-                   (subnode.id, subnode.device_type, node.id))
-        subnode.delete()
+                   (self.subnode.id, self.subnode.device_type, node.id))
+        self.subnode.delete()
         return output
 
     def configure_primary(self, host, label):
