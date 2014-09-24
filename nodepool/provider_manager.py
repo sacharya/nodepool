@@ -37,6 +37,7 @@ ITERATE_INTERVAL = 2  # How long to sleep while waiting for something
                       # in a loop
 
 
+
 def iterate_timeout(max_seconds, purpose):
     start = time.time()
     count = 0
@@ -407,6 +408,10 @@ class ProviderManager(TaskManager):
                     raise Exception("Invalid 'networks' configuration.")
             create_args['nics'] = nics
 
+        if self.provider.rackconnected:
+            create_args["meta"] = {}
+            create_args["meta"]["RackConnectProvisionPublicIP"] = "True"
+
         return self.submitTask(CreateServerTask(**create_args))
 
     def getServer(self, server_id):
@@ -445,17 +450,8 @@ class ProviderManager(TaskManager):
                 self.log.debug('Status of %s %s: %s' %
                                (resource_type, resource_id, status))
             last_status = status
-            if status == 'ERROR':
+            if status in ['ACTIVE', 'ERROR']:
                 return resource
-            elif status == 'ACTIVE':
-                if self.provider.rackconnected and resource_type == 'server':
-                    self.log.debug("Checking server %s for Rackconnect" % resource_id)
-                    if resource['metadata'].get('rackconnect_automation_status', '') == 'DEPLOYED':
-                        self.log.debug("Rackconnect DEPLOYED")
-                        return resource
-                else:
-                    return resource
-                
 
     def waitForServer(self, server_id, timeout=3600):
         return self._waitForResource('server', server_id, timeout)

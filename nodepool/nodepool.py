@@ -403,10 +403,11 @@ class NodeLauncher(threading.Thread):
         if not ip and self.manager.hasExtension('os-floating-ips'):
             ip = self.manager.addPublicIP(server_id,
                                           pool=self.provider.pool)
+        elif not ip and self.provider.rackconnected:
+            ip = server.get('addresses').get("RC-CLOUD-DMZ")[0].get("addr")
+
         if not ip:
             raise LaunchNetworkException("Unable to find public IP of server")
-        if 'rackconnect_automation_status' in server['metadata']:
-            ip = server.get('private_v4')
 
         self.node.ip = ip
         self.log.debug("Node id: %s is running, ip: %s, testing ssh" %
@@ -722,11 +723,11 @@ class SubNodeLauncher(threading.Thread):
             if not ip and self.manager.hasExtension('os-floating-ips'):
                 ip = self.manager.addPublicIP(server_id,
                                               pool=self.provider.pool)
+            elif not ip and self.provider.rackconnected:
+                ip = server.get('addresses').get("RC-CLOUD-DMZ")[0].get("addr")
+
             if not ip:
                 raise LaunchNetworkException("Unable to find public IP of server")
-
-            if 'rackconnect_automation_status' in server['metadata']:
-                ip = server.get('private_v4')
 
             self.subnode.ip = ip
             self.log.debug("Subnode id: %s for node id: %s is running, "
@@ -1021,6 +1022,9 @@ class SnapshotImageUpdater(ImageUpdater):
         if not ip and self.manager.hasExtension('os-floating-ips'):
             ip = self.manager.addPublicIP(server_id,
                                           pool=self.provider.pool)
+        elif not ip and self.provider.rackconnected:
+            ip = server.get('addresses').get("RC-CLOUD-DMZ")[0].get("addr")
+
         if not ip:
             raise Exception("Unable to find public IP of server")
         server['public_v4'] = ip
@@ -1069,11 +1073,7 @@ class SnapshotImageUpdater(ImageUpdater):
             ssh_kwargs['pkey'] = key
         else:
             ssh_kwargs['password'] = server['admin_pass']
-        if 'rackconnect_automation_status' in server['metadata']:
-            host = utils.ssh_connect(server['private_v4'], 'root', ssh_kwargs,
-                                 timeout=CONNECT_TIMEOUT)
-        else:
-            host = utils.ssh_connect(server['public_v4'], 'root', ssh_kwargs,
+        host = utils.ssh_connect(server['public_v4'], 'root', ssh_kwargs,
                                  timeout=CONNECT_TIMEOUT)
         if not host:
             # We have connected to the node but couldn't do anything as root
@@ -1081,12 +1081,7 @@ class SnapshotImageUpdater(ImageUpdater):
             # didn't occur), we can connect with a very sort timeout.
             for username in ['ubuntu', 'fedora', 'cloud-user']:
                 try:
-                    if 'rackconnect_automation_status' in server['metadata']:
-                        host = utils.ssh_connect(server['private_v4'], username,
-                                             ssh_kwargs,
-                                             timeout=10)
-                    else:
-                        host = utils.ssh_connect(server['public_v4'], username,
+                    host = utils.ssh_connect(server['public_v4'], username,
                                              ssh_kwargs,
                                              timeout=10)
                     if host:
